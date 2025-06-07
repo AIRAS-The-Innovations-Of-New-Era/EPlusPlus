@@ -54,7 +54,7 @@ This document tracks the implementation progress of Python syntax and features i
 - [ ] `open()`
 - [ ] `ord()`
 - [x] `pow()` (Implemented as part of `**` operator)
-- [x] `print()` (Basic support for string and integer literals, identifiers, and arithmetic expressions)
+- [x] `print()` (Basic support for string and integer literals, identifiers, and arithmetic/logical/bitwise expressions)
 - [ ] `property()`
 - [ ] `range()`
 - [ ] `repr()`
@@ -88,64 +88,64 @@ This document tracks the implementation progress of Python syntax and features i
 
 **2. Comparison (Relational) Operators:**
 
-- [ ] `==` (Equal to)
-- [ ] `!=` (Not equal to)
-- [ ] `>` (Greater than)
-- [ ] `<` (Less than)
-- [ ] `>=` (Greater than or equal to)
-- [ ] `<=` (Less than or equal to)
+- [x] `==` (Equal to)
+- [x] `!=` (Not equal to)
+- [x] `>` (Greater than)
+- [x] `<` (Less than)
+- [x] `>=` (Greater than or equal to)
+- [x] `<=` (Less than or equal to)
 
 **3. Assignment Operators:**
 
 - [x] `=` (Assign - for basic types and expressions)
-- [ ] `+=` (Add and assign)
-- [ ] `-=` (Subtract and assign)
-- [ ] `*=` (Multiply and assign)
-- [ ] `/=` (Divide and assign)
-- [ ] `%=` (Modulus and assign)
-- [ ] `**=` (Exponentiate and assign)
-- [ ] `//=` (Floor divide and assign)
-- [ ] `&=` (Bitwise AND and assign)
-- [ ] `|=` (Bitwise OR and assign)
-- [ ] `^=` (Bitwise XOR and assign)
-- [ ] `>>=` (Bitwise right shift and assign)
-- [ ] `<<=` (Bitwise left shift and assign)
+- [x] `+=` (Add and assign)
+- [x] `-=` (Subtract and assign)
+- [x] `*=` (Multiply and assign)
+- [x] `/=` (Divide and assign)
+- [x] `%=` (Modulus and assign)
+- [x] `**=` (Exponentiate and assign)
+- [x] `//=` (Floor divide and assign)
+- [x] `&=` (Bitwise AND and assign)
+- [x] `|=` (Bitwise OR and assign)
+- [x] `^=` (Bitwise XOR and assign)
+- [x] `>>=` (Bitwise right shift and assign)
+- [x] `<<=` (Bitwise left shift and assign)
 
 **4. Logical Operators:**
 
-- [ ] `and`
-- [ ] `or`
-- [ ] `not`
+- [x] `and`
+- [x] `or`
+- [x] `not`
 
 **5. Bitwise Operators:**
 
-- [ ] `&` (Bitwise AND)
-- [ ] `|` (Bitwise OR)
-- [ ] `^` (Bitwise XOR)
-- [ ] `~` (Bitwise NOT/Complement)
-- [ ] `<<` (Left shift)
-- [ ] `>>` (Right shift)
+- [x] `&` (Bitwise AND)
+- [x] `|` (Bitwise OR)
+- [x] `^` (Bitwise XOR)
+- [x] `~` (Bitwise NOT/Complement)
+- [x] `<<` (Left shift)
+- [x] `>>` (Right shift)
 
 **6. Identity Operators:**
 
-- [ ] `is`
-- [ ] `is not`
+- [x] `is` (Placeholder: C++ value equality for primitives)
+- [x] `is not` (Placeholder: C++ value inequality for primitives)
 
 **7. Membership Operators:**
 
-- [ ] `in`
-- [ ] `not in`
+- [x] `in` (Placeholder: C++ string.find for string operands)
+- [x] `not in` (Placeholder: C++ string.find for string operands)
 
 ## Other "Etc." - Key Concepts and Features
 
 **1. Data Structures (Built-in Types):**
 
 - **Numbers:**
-    - [x] `int` (Basic support)
+    - [x] `int` (Basic support, `long long` in C++)
     - [ ] `float`
     - [ ] `complex`
 - **Strings:**
-    - [x] `str` (Basic support for literals)
+    - [x] `str` (Basic support for literals and `std::string` in C++)
 - **Lists:**
     - [ ] `list`
 - **Tuples:**
@@ -157,7 +157,7 @@ This document tracks the implementation progress of Python syntax and features i
 - **Frozensets:**
     - [ ] `frozenset`
 - **Booleans:**
-    - [ ] `bool`
+    - [x] `bool` (Handled as `int` 0 or 1 in C++, `bool` in C++ for logical ops)
 - **NoneType:**
     - [ ] `None`
 

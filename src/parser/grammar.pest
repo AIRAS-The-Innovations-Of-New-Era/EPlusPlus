@@ -3,29 +3,64 @@ COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
 
 program = { SOI ~ statement* ~ EOI }
 
-statement = { assignment | print_statement }
+statement = { assignment | print_statement | if_statement }
 
-assignment_operator = @{ "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "//=" }
+assignment_operator = @{ "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "//=" | "&=" | "|=" | "^=" | ">>=" | "<<=" }
 assignment = { identifier ~ assignment_operator ~ expression }
 
 print_statement = { "print" ~ "(" ~ expression ~ ")" }
 
-expression = _{ comparison } // Changed from add_sub to comparison
+if_statement = { "if" ~ expression ~ block ~ elif_clause* ~ else_clause? }
+elif_clause = { "elif" ~ expression ~ block }
+else_clause = { "else" ~ block }
 
-comparison = { add_sub ~ (comp_op ~ add_sub)* } // New rule for comparison
-comp_op = @{ "==" | "!=" | ">=" | "<=" | ">" | "<" } // New comparison operators
+block = { "{" ~ statement* ~ "}" }
+
+expression = _{ logical_or }
+
+logical_or_op = @{ "or" }
+logical_or = { logical_and ~ (logical_or_op ~ logical_and)* }
+
+logical_and_op = @{ "and" }
+logical_and = { logical_not_expr ~ (logical_and_op ~ logical_not_expr)* } // Changed from comparison to logical_not_expr
+
+logical_not_op = @{ "not" }
+logical_not_expr = { logical_not_op ~ comparison_identity_membership | comparison_identity_membership } // logical_not is unary
+
+// Combined comparison, identity, and membership operators
+comparison_identity_membership = { bitwise_or ~ (comp_ident_member_op ~ bitwise_or)* }
+comp_ident_member_op = @{ "==" | "!=" | ">=" | "<=" | ">" | "<" | "is not" | "is" | "not in" | "in" }
+
+bitwise_or_op = @{ "|" }
+bitwise_or = { bitwise_xor ~ (bitwise_or_op ~ bitwise_xor)* }
+
+bitwise_xor_op = @{ "^" }
+bitwise_xor = { bitwise_and ~ (bitwise_xor_op ~ bitwise_and)* }
+
+bitwise_and_op = @{ "&" }
+bitwise_and = { shift ~ (bitwise_and_op ~ shift)* }
+
+shift_op = @{ "<<" | ">>" }
+shift = { add_sub ~ (shift_op ~ add_sub)* }
 
 add_sub = { mul_div_mod ~ (add_op ~ mul_div_mod)* }
-add_op = @{ "+" | "-" } // Made atomic
+add_op = @{ "+" | "-" }
 
-mul_div_mod = { power ~ (mul_op ~ power)* }
-mul_op = @{ "*" | "//" | "/" | "%" } // Made atomic, correct order
+mul_div_mod = { unary_bitwise_not_power ~ (mul_op ~ unary_bitwise_not_power)* } // Changed from power to unary_bitwise_not_power
+mul_op = @{ "*" | "//" | "/" | "%" }
+
+unary_bitwise_not_op = @{ "~" }
+// Power and unary bitwise NOT have similar precedence, handled by structure.
+// Unary + and - are typically handled by factor if needed, but Python's model is slightly different.
+// For now, ~ is grouped with power. 'not' is higher.
+unary_bitwise_not_power = { unary_bitwise_not_op ~ power | power }
 
 power = { factor ~ (pow_op ~ factor)* }
-pow_op = @{ "**" } // Made atomic
+pow_op = @{ "**" }
 
-factor = { integer_literal | string_literal | identifier | "(" ~ expression ~ ")" }
+factor = { float_literal | integer_literal | string_literal | identifier | "(" ~ expression ~ ")" }
 
+float_literal = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
 integer_literal = @{ ASCII_DIGIT+ }
 string_literal = @{ "\"" ~ (char* ) ~ "\"" }
 char = { !("\"" | "\\") ~ ANY }

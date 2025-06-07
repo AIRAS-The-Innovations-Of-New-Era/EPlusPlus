@@ -1,0 +1,36 @@
+# Float numbers test for E++
+
+# Basic float literals
+x = 3.14
+print(x)
+
+y = 2.5
+print(y)
+
+# Float arithmetic
+z = x + y
+print(z)
+
+result = x * y
+print(result)
+
+division = x / y
+print(division)
+
+# Mixed arithmetic (int and float)
+mixed = x + 10
+print(mixed)
+
+# Float comparisons
+print(x > y)
+print(x < y)
+print(x == 3.14)
+
+# Float assignment operators
+x += 1.5
+print(x)
+
+y *= 2.0
+print(y)
+
+print("Float tests complete.")
