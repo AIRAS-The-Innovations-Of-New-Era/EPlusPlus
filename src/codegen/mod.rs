@@ -1,5 +1,5 @@
 // Codegen module placeholder
-use crate::ast::{AstNode, Expression, Statement, BinOp};
+use crate::ast::{AstNode, Expression, Statement, BinOp, AssignmentOperator};
 
 pub fn generate_cpp_code(ast_nodes: &[AstNode]) -> Result<String, String> {
     let mut cpp_out = String::new();
@@ -30,23 +30,52 @@ pub fn generate_cpp_code(ast_nodes: &[AstNode]) -> Result<String, String> {
                     _ => {}
                 }
             }
-            AstNode::Statement(Statement::Assignment { name, value }) => {
-                match &**value {
-                    Expression::StringLiteral(s) => {
-                        let escaped_s = s.replace("\\", "\\\\").replace("\"", "\\\"");
-                        cpp_out.push_str(&format!("    std::string {} = \"{}\";\n", name, escaped_s));
+            AstNode::Statement(Statement::Assignment { name, operator, value }) => {
+                let value_cpp = emit_expression_cpp(value);
+                match operator {
+                    AssignmentOperator::Assign => {
+                        // Determine type based on expression type - simplistic for now
+                        // A proper symbol table and type system would be needed for robust type deduction
+                        match **value {
+                            Expression::StringLiteral(_) => {
+                                cpp_out.push_str(&format!("    std::string {} = {};\n", name, value_cpp));
+                            }
+                            Expression::IntegerLiteral(_) |
+                            Expression::BinaryOperation { .. } |
+                            Expression::Identifier(_) => { // Assuming int/auto for these for now
+                                cpp_out.push_str(&format!("    auto {} = {};\n", name, value_cpp));
+                            }
+                            _ => { // Default to auto, might cause C++ errors if type is not clear
+                                cpp_out.push_str(&format!("    auto {} = {};\n", name, value_cpp));
+                            }
+                        }
                     }
-                    Expression::IntegerLiteral(i) => {
-                        cpp_out.push_str(&format!("    int {} = {};\n", name, i));
+                    AssignmentOperator::AddAssign => {
+                        cpp_out.push_str(&format!("    {} += {};\n", name, value_cpp));
                     }
-                    Expression::Identifier(id) => {
-                        cpp_out.push_str(&format!("    auto {} = {};\n", name, id));
+                    AssignmentOperator::SubAssign => {
+                        cpp_out.push_str(&format!("    {} -= {};\n", name, value_cpp));
                     }
-                    Expression::BinaryOperation { .. } => {
-                        let expr_code = emit_expression_cpp(value);
-                        cpp_out.push_str(&format!("    auto {} = {};\n", name, expr_code));
+                    AssignmentOperator::MulAssign => {
+                        cpp_out.push_str(&format!("    {} *= {};\n", name, value_cpp));
                     }
-                    _ => {}
+                    AssignmentOperator::DivAssign => {
+                        cpp_out.push_str(&format!("    {} /= {};\n", name, value_cpp));
+                    }
+                    AssignmentOperator::ModAssign => {
+                        cpp_out.push_str(&format!("    {} %= {};\n", name, value_cpp));
+                    }
+                    AssignmentOperator::PowAssign => {
+                        // C++ does not have a direct **= operator. std::pow returns double.
+                        // Requires careful handling of types, assuming integer context for now.
+                        cpp_out.push_str(&format!("    {} = static_cast<long long>(std::pow({}, {}));\n", name, name, value_cpp));
+                    }
+                    AssignmentOperator::FloorDivAssign => {
+                        // Similar to PowAssign, C++ / for integers truncates.
+                        // Python's //= floors. This is a simplification.
+                        cpp_out.push_str(&format!("    {} /= {};\n", name, value_cpp)); // Simplified
+                    }
+                    // Implement other assignment operators as needed
                 }
             }
         }

@@ -4,7 +4,7 @@ use pest::iterators::Pair;
 use std::fs;
 use std::path::Path;
 
-use crate::ast::{AstNode, Expression, Statement, BinOp};
+use crate::ast::{AstNode, Expression, Statement, BinOp, AssignmentOperator};
 
 #[derive(Parser)]
 #[grammar = "parser/grammar.pest"]
@@ -46,9 +46,22 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
         Rule::assignment => {
             let mut inner_rules = inner.into_inner();
             let name = inner_rules.next().unwrap().as_str().to_string();
+            let op_str = inner_rules.next().unwrap().as_str();
+            let operator = match op_str {
+                "=" => AssignmentOperator::Assign,
+                "+=" => AssignmentOperator::AddAssign,
+                "-=" => AssignmentOperator::SubAssign,
+                "*=" => AssignmentOperator::MulAssign,
+                "/=" => AssignmentOperator::DivAssign,
+                "%=" => AssignmentOperator::ModAssign,
+                "**=" => AssignmentOperator::PowAssign,
+                "//=" => AssignmentOperator::FloorDivAssign,
+                _ => return Err(format!("Unknown assignment operator: {}", op_str)),
+            };
             let value_expr = build_ast_from_expression(inner_rules.next().unwrap())?;
             Ok(AstNode::Statement(Statement::Assignment {
                 name,
+                operator, // Use the parsed operator
                 value: Box::new(value_expr),
             }))
         }

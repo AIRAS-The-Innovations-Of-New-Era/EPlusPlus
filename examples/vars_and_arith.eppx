@@ -30,3 +30,24 @@ print(10 <= 10)    # Expected: 1 (true)
 print(10 <= 9)     # Expected: 0 (false)
 print(x == 42)     # Expected: 1 (true)
 print(y != x + 5)  # Expected: 0 (false)
+
+# New tests for assignment operators
+a = 10
+print(a)      # Expected: 10
+a += 5
+print(a)      # Expected: 15
+a -= 3
+print(a)      # Expected: 12
+a *= 2
+print(a)      # Expected: 24
+a /= 4
+print(a)      # Expected: 6 (integer division)
+b = 25
+b %= 4
+print(b)      # Expected: 1
+c = 2
+c **= 3
+print(c)      # Expected: 8
+d = 17
+d //= 5
+print(d)      # Expected: 3

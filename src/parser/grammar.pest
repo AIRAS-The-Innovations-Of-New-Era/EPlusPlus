@@ -5,7 +5,8 @@ program = { SOI ~ statement* ~ EOI }
 
 statement = { assignment | print_statement }
 
-assignment = { identifier ~ "=" ~ expression }
+assignment_operator = @{ "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "//=" }
+assignment = { identifier ~ assignment_operator ~ expression }
 
 print_statement = { "print" ~ "(" ~ expression ~ ")" }
 
