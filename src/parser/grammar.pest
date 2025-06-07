@@ -1,0 +1,23 @@
+WHITESPACE = _{ " " | "\t" | NEWLINE }
+COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
+
+program = { SOI ~ statement* ~ EOI }
+
+statement = { assignment | print_statement }
+
+assignment = { identifier ~ "=" ~ expression }
+
+print_statement = { "print" ~ "(" ~ expression ~ ")" }
+
+expression = _{ arithmetic }
+arithmetic = { term ~ (add_op ~ term)* }
+add_op = _{ "+" | "-" }
+term = { factor ~ (mul_op ~ factor)* }
+mul_op = _{ "*" | "/" }
+factor = { integer_literal | string_literal | identifier | "(" ~ expression ~ ")" }
+
+integer_literal = @{ ASCII_DIGIT+ }
+string_literal = @{ "\"" ~ (char* ) ~ "\"" }
+char = { !("\"" | "\\") ~ ANY }
+identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+NEWLINE = _{ "\r"? ~ "\n" }

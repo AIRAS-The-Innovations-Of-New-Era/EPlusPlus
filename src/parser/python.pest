@@ -1,0 +1,75 @@
+// Basic Python 3.x Grammar (WIP)
+// Based on https://docs.python.org/3/reference/grammar.html
+
+// Whitespace and Comments
+WHITESPACE = _{ " " | "\t" }
+COMMENT = _{ "#" ~ (!"\n" ~ ANY)* }
+
+// Basic Tokens
+IDENTIFIER = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+INTEGER    = @{ ASCII_DIGIT+ }
+FLOAT      = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT* | "." ~ ASCII_DIGIT+ }
+STRING     = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
+
+// Keywords (incomplete list)
+K_DEF      = { "def" }
+K_RETURN   = { "return" }
+K_IF       = { "if" }
+K_ELIF     = { "elif" }
+K_ELSE     = { "else" }
+K_FOR      = { "for" }
+K_IN       = { "in" }
+K_WHILE    = { "while" }
+K_PASS     = { "pass" }
+K_BREAK    = { "break" }
+K_CONTINUE = { "continue" }
+K_IMPORT   = { "import" }
+K_FROM     = { "from" }
+K_AS       = { "as" }
+K_CLASS    = { "class" }
+K_NONE     = { "None" }
+K_TRUE     = { "True" }
+K_FALSE    = { "False" }
+
+// Operators (incomplete list)
+OP_PLUS    = { "+" }
+OP_MINUS   = { "-" }
+OP_MUL     = { "*" }
+OP_DIV     = { "/" }
+OP_MOD     = { "%" }
+OP_EQ      = { "==" }
+OP_ASSIGN  = { "=" }
+
+// Punctuation
+LPAREN     = { "(" }
+RPAREN     = { ")" }
+LBRACE     = { "{" }
+RBRACE     = { "}" }
+LBRACKET   = { "[" }
+RBRACKET   = { "]" }
+COMMA      = { "," }
+COLON      = { ":" }
+DOT        = { "." }
+
+// Basic Expressions (very simplified)
+primary_expression = _{ IDENTIFIER | INTEGER | FLOAT | STRING | LPAREN ~ expression ~ RPAREN }
+expression = _{ primary_expression ~ ( (OP_PLUS | OP_MINUS | OP_MUL | OP_DIV | OP_MOD | OP_EQ) ~ primary_expression )* }
+
+// Statements (very simplified)
+assignment_statement = _{ IDENTIFIER ~ OP_ASSIGN ~ expression }
+return_statement     = _{ K_RETURN ~ expression? }
+expression_statement = _{ expression }
+
+statement = _{ assignment_statement | return_statement | expression_statement | K_PASS }
+
+// Function Definition (very simplified)
+parameters = _{ (IDENTIFIER ~ (COMMA ~ IDENTIFIER)*)? }
+func_def = _{ K_DEF ~ IDENTIFIER ~ LPAREN ~ parameters ~ RPAREN ~ COLON ~ NEWLINE ~ INDENT ~ statement+ ~ DEDENT }
+
+// Program Structure
+file_input = _{ SOI ~ (NEWLINE | statement | func_def)* ~ EOI }
+
+// Pest specific rules for indentation (simplified)
+INDENT   = _{ "" } // Placeholder, actual indentation logic is complex
+DEDENT   = _{ "" } // Placeholder
+NEWLINE  = _{ "\r"? ~ "\n" }

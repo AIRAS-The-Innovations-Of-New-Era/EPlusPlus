@@ -1,0 +1,6 @@
+x = 42
+print(x)
+print(123)
+y = x + 5
+print(y)
+print(1 + 2 * 3)

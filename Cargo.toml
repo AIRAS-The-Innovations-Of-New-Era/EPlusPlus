@@ -7,4 +7,9 @@ description = "A Python-compatible compiled language."
 license = "MIT"
 
 [dependencies]
+pest = "2.7.7"
+pest_derive = "2.7.7"
+clap = { version = "4.4.8", features = ["derive"] }
+thiserror = "1.0.50"
+colored = "2.0.0"
 # Add dependencies as needed
