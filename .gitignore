@@ -1,0 +1,11 @@
+target/
+**/*.rs.bk
+Cargo.lock
+*.swp
+.DS_Store
+.idea/
+.vscode/
+*.log
+*.tmp
+*.pyc
+__pycache__/

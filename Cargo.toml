@@ -1,0 +1,10 @@
+[package]
+name = "eppx-lang"
+version = "0.1.0"
+edition = "2021"
+authors = ["E++ Contributors"]
+description = "A Python-compatible compiled language."
+license = "MIT"
+
+[dependencies]
+# Add dependencies as needed

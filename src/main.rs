@@ -1,0 +1,6 @@
+// ...existing code...
+// Main entry point for the E++ CLI
+fn main() {
+    println!("E++: Python-compatible compiled language CLI");
+}
+// ...existing code...
