@@ -164,7 +164,7 @@ This document tracks the implementation progress of Python syntax and features i
 **2. Control Flow:**
 
 - **Conditional Statements:**
-    - [ ] `if`, `elif`, `else`
+    - [x] `if`, `elif`, `else`
 - **Loops:**
     - [ ] `for`, `while`
 - **Loop Control Statements:**

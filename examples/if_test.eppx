@@ -1,0 +1,29 @@
+# Test for if/elif/else in E++
+
+x = 10
+y = 20
+z = 30
+
+if x > y {
+    print("x > y")
+} elif x == y {
+    print("x == y")
+} else {
+    print("x < y")
+}
+
+if z > y {
+    print("z > y")
+}
+
+if x == 10 {
+    print("x is ten")
+} elif x == 11 {
+    print("x is eleven")
+} elif x == 12 {
+    print("x is twelve")
+} else {
+    print("x is something else")
+}
+
+print("If/elif/else tests complete.")

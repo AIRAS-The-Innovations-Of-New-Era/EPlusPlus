@@ -2,66 +2,63 @@
 use crate::ast::{AstNode, Expression, Statement, BinOp, UnaryOp, AssignmentOperator};
 use std::collections::HashSet;
 
-pub fn generate_cpp_code(ast_nodes: &[AstNode]) -> Result<String, String> {
+pub fn generate_cpp_code_with_toplevel(ast_nodes: &[AstNode], is_toplevel: bool) -> Result<String, String> {
     let mut cpp_out = String::new();
     let mut declared_vars = HashSet::new(); // Track declared variables
-    
-    cpp_out.push_str("#include <iostream>\n");
-    cpp_out.push_str("#include <string>\n");
-    cpp_out.push_str("#include <vector>\n"); // For potential future use with 'in' on lists
-    cpp_out.push_str("#include <algorithm>\n"); // For std::find, potentially for 'in'
-    cpp_out.push_str("#include <cmath> // Added for std::pow\n\n");    // Basic print functions
-    cpp_out.push_str("void eppx_print(const std::string& s) { std::cout << s << std::endl; }\n");
-    cpp_out.push_str("void eppx_print(long long x) { std::cout << x << std::endl; }\n"); // Changed int to long long
-    cpp_out.push_str("void eppx_print(double x) { std::cout << x << std::endl; }\n"); // Added double for floats
-    cpp_out.push_str("void eppx_print(int x) { std::cout << x << std::endl; }\n"); // Keep int for bools
-    cpp_out.push_str("void eppx_print(bool b) { std::cout << (b ? \"true\" : \"false\") << std::endl; }\n\n");
-
-    // Placeholder for a simple E++ object type for identity checks if needed later
-    // cpp_out.push_str("struct EppxObject { long long id; /* other data */ };\n");
-
-    cpp_out.push_str("int main() {\n");
+    if is_toplevel {
+        cpp_out.push_str("#include <iostream>\n");
+        cpp_out.push_str("#include <string>\n");
+        cpp_out.push_str("#include <vector>\n"); // For potential future use with 'in' on lists
+        cpp_out.push_str("#include <algorithm>\n"); // For std::find, potentially for 'in'
+        cpp_out.push_str("#include <cmath> // Added for std::pow\n\n");
+        // Basic print functions
+        cpp_out.push_str("void eppx_print(const std::string& s) { std::cout << s << std::endl; }\n");
+        cpp_out.push_str("void eppx_print(long long x) { std::cout << x << std::endl; }\n"); // Changed int to long long
+        cpp_out.push_str("void eppx_print(double x) { std::cout << x << std::endl; }\n"); // Added double for floats
+        cpp_out.push_str("void eppx_print(int x) { std::cout << x << std::endl; }\n"); // Keep int for bools
+        cpp_out.push_str("void eppx_print(bool b) { std::cout << (b ? \"true\" : \"false\") << std::endl; }\n\n");
+        // Placeholder for a simple E++ object type for identity checks if needed later
+        // cpp_out.push_str("struct EppxObject { long long id; /* other data */ };\n");
+        cpp_out.push_str("int main() {\n");
+    }
     for node in ast_nodes {
         match node {
             AstNode::Statement(Statement::Print(expr)) => {
                 let expr_code = emit_expression_cpp(expr)?;
                 cpp_out.push_str(&format!("    eppx_print({});\n", expr_code));
-            }            AstNode::Statement(Statement::Assignment { name, operator, value }) => {
+            }
+            AstNode::Statement(Statement::Assignment { name, operator, value }) => {
                 let value_cpp = emit_expression_cpp(value)?;
-                  // Check if variable is already declared using our symbol table
                 if !declared_vars.contains(name) {
-                    // First assignment is declaration
-                    let type_str = match **value { // Changed from *value to **value
+                    let type_str = match **value {
                         Expression::StringLiteral(_) => "std::string",
                         Expression::IntegerLiteral(_) => "long long",
-                        Expression::FloatLiteral(_) => "double", // Added float literal support
-                        Expression::BinaryOperation { ref op, .. } => match op { // Added ref
-                            // Logical and comparison ops result in bool, map to int for now
+                        Expression::FloatLiteral(_) => "double",
+                        Expression::BinaryOperation { ref op, .. } => match op {
                             BinOp::And | BinOp::Or | BinOp::Eq | BinOp::NotEq | BinOp::Gt |
                             BinOp::Lt | BinOp::GtEq | BinOp::LtEq | BinOp::Is |
-                            BinOp::IsNot | BinOp::In | BinOp::NotIn => "int", // Python bools are ints
-                            _ => "double" // Mixed arithmetic often results in float
+                            BinOp::IsNot | BinOp::In | BinOp::NotIn => "int",
+                            _ => "double"
                         },
-                        Expression::UnaryOperation { ref op, .. } => match op { // Added ref
-                            UnaryOp::Not => "int", // Python bools are ints
+                        Expression::UnaryOperation { ref op, .. } => match op {
+                            UnaryOp::Not => "int",
                             UnaryOp::BitNot => "long long",
                         },
-                        Expression::Identifier(_) => "auto", // If assigning from another var, use auto
-                        _ => "auto", // Default
+                        Expression::Identifier(_) => "auto",
+                        _ => "auto",
                     };
                     cpp_out.push_str(&format!("    {} {};\n", type_str, name));
                     declared_vars.insert(name.clone());
                 }
-
                 let op_assign_str = match operator {
                     AssignmentOperator::Assign => format!("    {} = {};\n", name, value_cpp),
                     AssignmentOperator::AddAssign => format!("    {} += {};\n", name, value_cpp),
                     AssignmentOperator::SubAssign => format!("    {} -= {};\n", name, value_cpp),
                     AssignmentOperator::MulAssign => format!("    {} *= {};\n", name, value_cpp),
-                    AssignmentOperator::DivAssign => format!("    {} /= {};\n", name, value_cpp), // C++ int division truncates
+                    AssignmentOperator::DivAssign => format!("    {} /= {};\n", name, value_cpp),
                     AssignmentOperator::ModAssign => format!("    {} %= {};\n", name, value_cpp),
                     AssignmentOperator::PowAssign => format!("    {} = static_cast<long long>(std::pow({}, {}));\n", name, name, value_cpp),
-                    AssignmentOperator::FloorDivAssign => format!("    {} /= {};\n", name, value_cpp), // C++ int division truncates, matches Python // for positive results
+                    AssignmentOperator::FloorDivAssign => format!("    {} /= {};\n", name, value_cpp),
                     AssignmentOperator::BitAndAssign => format!("    {} &= {};\n", name, value_cpp),
                     AssignmentOperator::BitOrAssign => format!("    {} |= {};\n", name, value_cpp),
                     AssignmentOperator::BitXorAssign => format!("    {} ^= {};\n", name, value_cpp),
@@ -71,45 +68,46 @@ pub fn generate_cpp_code(ast_nodes: &[AstNode]) -> Result<String, String> {
                 cpp_out.push_str(&op_assign_str);
             }
             AstNode::Statement(Statement::If { condition, then_body, elifs, else_body }) => {
-                let cond_cpp = emit_expression_cpp(condition)?;
-                cpp_out.push_str(&format!("    if ({}) {{\n", cond_cpp));
-                for stmt in then_body {
-                    let inner = generate_cpp_code(&[stmt.clone()])?;
-                    for line in inner.lines().skip_while(|l| !l.trim_start().starts_with("eppx_print") && !l.trim_start().starts_with("    ")) {
-                        cpp_out.push_str(line);
-                        cpp_out.push('\n');
+                let mut chain = String::new();
+                let emit_block = |stmts: &Vec<AstNode>| -> Result<String, String> {
+                    let mut block = String::new();
+                    for stmt in stmts {
+                        let inner = generate_cpp_code_with_toplevel(&[stmt.clone()], false)?;
+                        for line in inner.lines() {
+                            block.push_str(line);
+                            block.push('\n');
+                        }
                     }
-                }
-                cpp_out.push_str("    }");
+                    Ok(block)
+                };
+                let cond_cpp = emit_expression_cpp(condition)?;
+                chain.push_str(&format!("    if ({}) {{\n", cond_cpp));
+                chain.push_str(&emit_block(then_body)?);
+                chain.push_str("    }");
                 for (elif_cond, elif_body) in elifs {
                     let elif_cond_cpp = emit_expression_cpp(elif_cond)?;
-                    cpp_out.push_str(&format!(" else if ({}) {{\n", elif_cond_cpp));
-                    for stmt in elif_body {
-                        let inner = generate_cpp_code(&[stmt.clone()])?;
-                        for line in inner.lines().skip_while(|l| !l.trim_start().starts_with("eppx_print") && !l.trim_start().starts_with("    ")) {
-                            cpp_out.push_str(line);
-                            cpp_out.push('\n');
-                        }
-                    }
-                    cpp_out.push_str("    }");
+                    chain.push_str(&format!(" else if ({}) {{\n", elif_cond_cpp));
+                    chain.push_str(&emit_block(elif_body)?);
+                    chain.push_str("    }");
                 }
                 if let Some(else_body) = else_body {
-                    cpp_out.push_str(" else {\n");
-                    for stmt in else_body {
-                        let inner = generate_cpp_code(&[stmt.clone()])?;
-                        for line in inner.lines().skip_while(|l| !l.trim_start().starts_with("eppx_print") && !l.trim_start().starts_with("    ")) {
-                            cpp_out.push_str(line);
-                            cpp_out.push('\n');
-                        }
-                    }
-                    cpp_out.push_str("    }");
+                    chain.push_str(" else {\n");
+                    chain.push_str(&emit_block(&else_body)?);
+                    chain.push_str("    }");
                 }
-                cpp_out.push_str("\n");
+                chain.push_str("\n");
+                cpp_out.push_str(&chain);
             }
         }
     }
-    cpp_out.push_str("    return 0;\n}\n");
+    if is_toplevel {
+        cpp_out.push_str("    return 0;\n}\n");
+    }
     Ok(cpp_out)
+}
+
+pub fn generate_cpp_code(ast_nodes: &[AstNode]) -> Result<String, String> {
+    generate_cpp_code_with_toplevel(ast_nodes, true)
 }
 
 fn emit_expression_cpp(expr: &Expression) -> Result<String, String> {
