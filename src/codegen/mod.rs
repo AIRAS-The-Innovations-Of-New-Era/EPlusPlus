@@ -69,8 +69,14 @@ fn emit_expression_cpp(expr: &Expression) -> String {
                 BinOp::Mul => "*",
                 BinOp::Div => "/", 
                 BinOp::Mod => "%",
-                BinOp::Pow => return format!("static_cast<long long>(std::pow({}, {}))", l, r), // Cast to long long
+                BinOp::Pow => return format!("static_cast<long long>(std::pow({}, {}))", l, r),
                 BinOp::FloorDiv => "/", 
+                BinOp::Eq => "==",
+                BinOp::NotEq => "!=",
+                BinOp::Lt => "<",
+                BinOp::Gt => ">",
+                BinOp::LtEq => "<=",
+                BinOp::GtEq => ">=",
                 _ => "/* unsupported op */",
             };
             format!("({} {} {})", l, op_str, r)

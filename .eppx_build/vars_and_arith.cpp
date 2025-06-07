@@ -19,5 +19,19 @@ int main() {
     eppx_print((11 / 3));
     eppx_print((static_cast<long long>(std::pow(5, 2)) % 3));
     eppx_print((2 * static_cast<long long>(std::pow(3, 2))));
+    eppx_print((10 == 10));
+    eppx_print((10 == 5));
+    eppx_print((10 != 5));
+    eppx_print((10 != 10));
+    eppx_print((10 > 5));
+    eppx_print((5 > 10));
+    eppx_print((10 < 20));
+    eppx_print((20 < 10));
+    eppx_print((10 >= 10));
+    eppx_print((10 >= 11));
+    eppx_print((10 <= 10));
+    eppx_print((10 <= 9));
+    eppx_print((x == 42));
+    eppx_print((y != (x + 5)));
     return 0;
 }

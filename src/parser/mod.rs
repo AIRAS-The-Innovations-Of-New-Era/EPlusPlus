@@ -62,6 +62,30 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
             // An expression rule directly contains an add_sub (or whatever the top precedence is)
             build_ast_from_expression(pair.into_inner().next().unwrap())
         }
+        Rule::comparison => { // New handler for comparison rule
+            let mut inner = pair.into_inner();
+            let mut left = build_ast_from_expression(inner.next().unwrap())?;
+            while let Some(op_pair) = inner.next() {
+                let op_str = op_pair.as_str();
+                let op = match op_str {
+                    "==" => BinOp::Eq,
+                    "!=" => BinOp::NotEq,
+                    ">" => BinOp::Gt,
+                    "<" => BinOp::Lt,
+                    ">=" => BinOp::GtEq,
+                    "<=" => BinOp::LtEq,
+                    _ => return Err(format!("Unknown comparison_op: {}", op_str)),
+                };
+                let right_pair = inner.next().ok_or_else(|| format!("Missing right operand for {}", op_str))?;
+                let right = build_ast_from_expression(right_pair)?;
+                left = Expression::BinaryOperation {
+                    left: Box::new(left),
+                    op,
+                    right: Box::new(right),
+                };
+            }
+            Ok(left)
+        }
         Rule::string_literal => {
             let full_str = pair.as_str();
             let content = full_str[1..full_str.len()-1].to_string();

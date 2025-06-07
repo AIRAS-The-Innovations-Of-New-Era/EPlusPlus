@@ -9,7 +9,10 @@ assignment = { identifier ~ "=" ~ expression }
 
 print_statement = { "print" ~ "(" ~ expression ~ ")" }
 
-expression = _{ add_sub }
+expression = _{ comparison } // Changed from add_sub to comparison
+
+comparison = { add_sub ~ (comp_op ~ add_sub)* } // New rule for comparison
+comp_op = @{ "==" | "!=" | ">=" | "<=" | ">" | "<" } // New comparison operators
 
 add_sub = { mul_div_mod ~ (add_op ~ mul_div_mod)* }
 add_op = @{ "+" | "-" } // Made atomic
