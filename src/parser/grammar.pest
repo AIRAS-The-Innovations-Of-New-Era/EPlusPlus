@@ -9,11 +9,17 @@ assignment = { identifier ~ "=" ~ expression }
 
 print_statement = { "print" ~ "(" ~ expression ~ ")" }
 
-expression = _{ arithmetic }
-arithmetic = { term ~ (add_op ~ term)* }
-add_op = _{ "+" | "-" }
-term = { factor ~ (mul_op ~ factor)* }
-mul_op = _{ "*" | "/" }
+expression = _{ add_sub }
+
+add_sub = { mul_div_mod ~ (add_op ~ mul_div_mod)* }
+add_op = @{ "+" | "-" } // Made atomic
+
+mul_div_mod = { power ~ (mul_op ~ power)* }
+mul_op = @{ "*" | "//" | "/" | "%" } // Made atomic, correct order
+
+power = { factor ~ (pow_op ~ factor)* }
+pow_op = @{ "**" } // Made atomic
+
 factor = { integer_literal | string_literal | identifier | "(" ~ expression ~ ")" }
 
 integer_literal = @{ ASCII_DIGIT+ }

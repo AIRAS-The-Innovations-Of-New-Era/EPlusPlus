@@ -4,3 +4,13 @@ print(123)
 y = x + 5
 print(y)
 print(1 + 2 * 3)
+
+print("yo welcome from e++")
+
+# New tests for additional operators
+print(10 % 3)      # Expected: 1
+print(2 ** 4)      # Expected: 16
+print(10 // 3)     # Expected: 3
+print(11 // 3)     # Expected: 3
+print(5 ** 2 % 3)  # Expected: 1 (25 % 3)
+print(2 * 3 ** 2)  # Expected: 18 (2 * 9)

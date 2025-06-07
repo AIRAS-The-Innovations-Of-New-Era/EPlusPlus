@@ -4,7 +4,8 @@ use crate::ast::{AstNode, Expression, Statement, BinOp};
 pub fn generate_cpp_code(ast_nodes: &[AstNode]) -> Result<String, String> {
     let mut cpp_out = String::new();
     cpp_out.push_str("#include <iostream>\n");
-    cpp_out.push_str("#include <string>\n\n");
+    cpp_out.push_str("#include <string>\n");
+    cpp_out.push_str("#include <cmath> // Added for std::pow\n\n");
     cpp_out.push_str("void eppx_print(const std::string& s) { std::cout << s << std::endl; }\n");
     cpp_out.push_str("void eppx_print(int x) { std::cout << x << std::endl; }\n\n");
     cpp_out.push_str("int main() {\n");
@@ -66,7 +67,10 @@ fn emit_expression_cpp(expr: &Expression) -> String {
                 BinOp::Add => "+",
                 BinOp::Sub => "-",
                 BinOp::Mul => "*",
-                BinOp::Div => "/",
+                BinOp::Div => "/", 
+                BinOp::Mod => "%",
+                BinOp::Pow => return format!("static_cast<long long>(std::pow({}, {}))", l, r), // Cast to long long
+                BinOp::FloorDiv => "/", 
                 _ => "/* unsupported op */",
             };
             format!("({} {} {})", l, op_str, r)
