@@ -66,9 +66,9 @@ fn _generate_cpp_code_with_vars(ast_nodes: &[AstNode], is_toplevel: bool, declar
                             let type_str = infer_cpp_type_for_static_member(value);
                             cpp_out.push_str(&format!("    static inline {} {} = {};\n", type_str, member_name, value_cpp));
                         }
-                        AstNode::Statement(Statement::FunctionDef { name: method_name, params, body: method_body }) => {
+                        AstNode::Statement(Statement::FunctionDef { name: method_name, params, body: _method_body }) => {
                             // Generate member function (method)
-                            cpp_out.push_str(&emit_method_cpp(method_name, params, body)?);
+                            cpp_out.push_str(&emit_method_cpp(method_name, params, _method_body)?);
                         }
                         _ => { /* Other statements in class body might be ignored or handled later */ }
                     }
@@ -87,7 +87,7 @@ fn _generate_cpp_code_with_vars(ast_nodes: &[AstNode], is_toplevel: bool, declar
             continue;
         }
         // DEBUG: Print node kind for troubleshooting
-        eprintln!("Codegen node: {:?}", node);
+        // eprintln!("Codegen node: {:?}", node); // Removed debug print
         match node {
             AstNode::Statement(Statement::Print(expr)) => {
                 let expr_code = emit_expression_cpp(expr)?;

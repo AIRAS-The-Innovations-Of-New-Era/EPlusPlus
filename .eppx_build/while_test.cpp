@@ -7,31 +7,30 @@
 void eppx_print(const std::string& s) { std::cout << s << std::endl; }
 void eppx_print(long long x) { std::cout << x << std::endl; }
 void eppx_print(double x) { std::cout << x << std::endl; }
-void eppx_print(int x) { std::cout << x << std::endl; }
 void eppx_print(bool b) { std::cout << (b ? "true" : "false") << std::endl; }
 
+std::vector<long long> eppx_range(long long n) {
+    std::vector<long long> result;
+    for (long long i = 0; i < n; ++i) {
+        result.push_back(i);
+    }
+    return result;
+}
+
 int main() {
-    long long i;
-    i = 0LL;
-    while ((i < 5LL)) {
+    long long i = 0LL;    while (i < 5LL) {
     eppx_print(std::string("Loop iteration:"));
     eppx_print(i);
     i += 1LL;
     }
     eppx_print(std::string("Loop completed"));
-    long long countdown;
-    countdown = 10LL;
-    while ((countdown > 0LL)) {
+    long long countdown = 10LL;    while (countdown > 0LL) {
     eppx_print(std::string("Countdown:"));
     eppx_print(countdown);
     countdown -= 1LL;
     }
     eppx_print(std::string("Blast off!"));
-    long long x;
-    x = 1LL;
-    long long y;
-    y = 100LL;
-    while ((((x < y)) && ((x < 50LL)))) {
+    long long x = 1LL;    long long y = 100LL;    while (x < y && x < 50LL) {
     eppx_print(std::string("x is now:"));
     eppx_print(x);
     x *= 2LL;
