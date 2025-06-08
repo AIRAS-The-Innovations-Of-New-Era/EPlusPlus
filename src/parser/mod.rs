@@ -269,6 +269,38 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                 body,
             }))
         }
+        Rule::function_definition => {
+            let mut inner_rules = inner.into_inner();
+            let name = inner_rules.next().unwrap().as_str().to_string();
+            // Parse parameter list
+            let mut params = Vec::new();
+            if let Some(param_list_pair) = inner_rules.next() {
+                for param in param_list_pair.into_inner() {
+                    params.push(param.as_str().to_string());
+                }
+            }
+            let block_pair = inner_rules.next().unwrap();
+            let body = block_pair.into_inner().map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
+            Ok(AstNode::Statement(Statement::FunctionDef {
+                name,
+                params,
+                body,
+            }))
+        }
+        Rule::return_statement => {
+            let mut inner_rules = inner.into_inner();
+            let expr = if let Some(expr_pair) = inner_rules.next() {
+                Some(Box::new(build_ast_from_expression(expr_pair)?))
+            } else {
+                None
+            };
+            Ok(AstNode::Statement(Statement::Return(expr)))
+        }
+        Rule::expression_statement => {
+            let expr_pair = inner.into_inner().next().ok_or_else(|| "Expression statement missing expression".to_string())?;
+            let expr_node = build_ast_from_expression(expr_pair)?;
+            Ok(AstNode::Statement(Statement::ExpressionStatement(Box::new(expr_node))))
+        }
         _ => Err(format!("Unhandled statement type: {:?}\nContent: '{}'", inner.as_rule(), inner.as_str())),
     }
 }
@@ -282,10 +314,10 @@ pub fn parse_eppx_string(input: &str) -> Result<Vec<AstNode>, String> {
             for pair in program_pair.into_inner() { 
                 match pair.as_rule() {
                     Rule::statement => {
-                        ast_nodes.push(build_ast_from_statement(pair)?); // Calls renamed build_ast_from_statement
+                        ast_nodes.push(build_ast_from_statement(pair)?);
                     }
-                    Rule::EOI => {} 
-                    _ => return Err(format!("Unexpected rule in program: {:?}, content: '{}'", pair.as_rule(), pair.as_str())),
+                    Rule::EOI => {}
+                    _ => return Err(format!("Unexpected rule in program: {:?}", pair.as_rule())),
                 }
             }
             Ok(ast_nodes)

@@ -1,9 +1,10 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
 
-program = { SOI ~ statement* ~ EOI }
+program = { SOI ~ (statement | function_definition)* ~ EOI }
 
-statement = { assignment | print_statement | if_statement | while_statement | for_statement }
+statement = { assignment | print_statement | if_statement | while_statement | for_statement | function_definition | return_statement | expression_statement }
+expression_statement = { expression }
 
 assignment_operator = @{ "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "//=" | "&=" | "|=" | "^=" | ">>=" | "<<=" }
 assignment = { identifier ~ assignment_operator ~ expression }
@@ -73,3 +74,8 @@ string_literal = @{ "\"" ~ (char* ) ~ "\"" }
 char = { !("\"" | "\\") ~ ANY }
 identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 NEWLINE = _{ "\r"? ~ "\n" }
+
+function_definition = { "def" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ block }
+parameter_list = { identifier ~ ("," ~ identifier)* }
+
+return_statement = { "return" ~ expression? }

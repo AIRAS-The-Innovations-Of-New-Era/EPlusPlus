@@ -29,7 +29,14 @@ pub enum Statement {
         iterable: Box<Expression>,
         body: Vec<AstNode>,
     },
-    // Future: FunctionDef, ClassDef, etc.
+    FunctionDef {
+        name: String,
+        params: Vec<String>,
+        body: Vec<AstNode>,
+    },
+    Return(Option<Box<Expression>>),
+    ExpressionStatement(Box<Expression>), // Added for standalone expressions
+    // Future: ClassDef, etc.
 }
 
 #[allow(dead_code)]
