@@ -18,5 +18,20 @@ std::vector<long long> eppx_range(long long n) {
 }
 
 int main() {
+    long long i = 0LL;
+    while (i < 10LL) {
+    i += 1LL;
+    if (i == 3LL) {
+    ; // pass statement
+    }
+    if (i == 5LL) {
+    continue;
+    }
+    if (i == 8LL) {
+    break;
+    }
+    eppx_print(i);
+    }
+    eppx_print(std::string("done"));
     return 0;
 }

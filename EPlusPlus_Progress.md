@@ -167,17 +167,17 @@ This document tracks the implementation progress of Python syntax and features i
     - [x] `if`, `elif`, `else`
 - **Loops:**
     - [x] `while` (Full support: parsing, AST, codegen, variable scoping, tested June 7, 2025)
-    - [ ] `for`
+    - [x] `for`
 - **Loop Control Statements:**
-    - [ ] `break`
-    - [ ] `continue`
-    - [ ] `pass`
+    - [x] `break`
+    - [x] `continue`
+    - [x] `pass`
 
 **3. Functions (Defining Your Own):**
 
-- [ ] `def` keyword
-- [ ] `return` statement
-- [ ] Arguments, parameters
+- [x] `def` keyword
+- [x] `return` statement
+- [x] Arguments, parameters
 - [ ] `lambda`
 - [ ] Decorators
 

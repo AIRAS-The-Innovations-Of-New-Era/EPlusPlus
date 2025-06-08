@@ -36,7 +36,15 @@ pub enum Statement {
     },
     Return(Option<Box<Expression>>),
     ExpressionStatement(Box<Expression>), // Added for standalone expressions
-    // Future: ClassDef, etc.
+    Break,                              // Added for break statements
+    Continue,                           // Added for continue statements
+    Pass,                               // Added for pass statements
+    ClassDef {
+        name: String,
+        // base_classes: Vec<Expression>, // For future inheritance
+        body: Vec<AstNode>,
+    },
+    // Future: etc.
 }
 
 #[allow(dead_code)]

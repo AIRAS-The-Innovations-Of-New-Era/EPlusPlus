@@ -1,9 +1,9 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
 
-program = { SOI ~ (statement | function_definition)* ~ EOI }
+program = { SOI ~ ( (statement | function_definition) ~ (WHITESPACE* ~ COMMENT*) )* ~ EOI }
 
-statement = { assignment | print_statement | if_statement | while_statement | for_statement | function_definition | return_statement | expression_statement }
+statement = { assignment | print_statement | if_statement | while_statement | for_statement | function_definition | return_statement | expression_statement | break_statement | continue_statement | pass_statement }
 expression_statement = { expression }
 
 assignment_operator = @{ "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "//=" | "&=" | "|=" | "^=" | ">>=" | "<<=" }
@@ -79,3 +79,7 @@ function_definition = { "def" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ block
 parameter_list = { identifier ~ ("," ~ identifier)* }
 
 return_statement = { "return" ~ expression? }
+
+break_statement = { "break" }
+continue_statement = { "continue" }
+pass_statement = { "pass" }

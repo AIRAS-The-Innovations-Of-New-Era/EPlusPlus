@@ -28,27 +28,54 @@ fn _generate_cpp_code_with_vars(ast_nodes: &[AstNode], is_toplevel: bool, declar
         cpp_out.push_str("    }\n");
         cpp_out.push_str("    return result;\n");
         cpp_out.push_str("}\n\n");
-    }    // First pass: emit all function definitions at the top level
+    }    // First pass: emit all function definitions and class definitions at the top level
+    // This helps with C++'s requirement for declaration before use.
     for node in ast_nodes {
-        if let AstNode::Statement(Statement::FunctionDef { name, params, body }) = node {
-            // For now, use auto for parameters to let C++ deduce types
-            let param_list = params.iter().map(|p| format!("auto {}", p)).collect::<Vec<_>>().join(", ");
-            let mut declared_vars_fn = HashSet::new();
-            for p in params {
-                declared_vars_fn.insert(p.clone());
+        match node {
+            AstNode::Statement(Statement::FunctionDef { name, params, body }) => {
+                // Infer parameter types from call sites
+                let param_types = infer_param_types_from_calls(name, params.len(), ast_nodes);
+                let param_list = params.iter().enumerate().map(|(i, p)| format!("{} {}", param_types[i], p)).collect::<Vec<_>>().join(", ");
+                let mut declared_vars_fn = HashSet::new();
+                for p in params {
+                    declared_vars_fn.insert(p.clone());
+                }
+                let body_cpp = _generate_cpp_code_with_vars(body, false, &mut declared_vars_fn)?;
+                // Use auto return type to let C++ deduce
+                cpp_out.push_str(&format!("auto {}({}) {{\n", name, param_list));
+                cpp_out.push_str(&body_cpp);
+                // Only add default return if no explicit return found in body
+                let has_return = body.iter().any(|node| {
+                    matches!(node, AstNode::Statement(Statement::Return(_)))
+                });
+                if !has_return {
+                    cpp_out.push_str("    return 0;\n");
+                }
+                cpp_out.push_str("}\n\n");
             }
-            let body_cpp = _generate_cpp_code_with_vars(body, false, &mut declared_vars_fn)?;
-            // Use auto return type to let C++ deduce
-            cpp_out.push_str(&format!("auto {}({}) {{\n", name, param_list));
-            cpp_out.push_str(&body_cpp);
-            // Only add default return if no explicit return found in body
-            let has_return = body.iter().any(|node| {
-                matches!(node, AstNode::Statement(Statement::Return(_)))
-            });
-            if !has_return {
-                cpp_out.push_str("    return 0;\n");
+            AstNode::Statement(Statement::ClassDef { name, body }) => {
+                cpp_out.push_str(&format!("struct {} {{\n", name));
+                // Process class body for static members and methods
+                // This is a simplified model: assignments become static members, defs become methods.
+                // No special handling for __init__ or self yet.
+                for class_node in body {
+                    match class_node {
+                        AstNode::Statement(Statement::Assignment { name: member_name, operator: AssignmentOperator::Assign, value }) => {
+                            // Generate static inline member
+                            let value_cpp = emit_expression_cpp(value)?;
+                            let type_str = infer_cpp_type_for_static_member(value);
+                            cpp_out.push_str(&format!("    static inline {} {} = {};\n", type_str, member_name, value_cpp));
+                        }
+                        AstNode::Statement(Statement::FunctionDef { name: method_name, params, body: method_body }) => {
+                            // Generate member function (method)
+                            cpp_out.push_str(&emit_method_cpp(method_name, params, body)?);
+                        }
+                        _ => { /* Other statements in class body might be ignored or handled later */ }
+                    }
+                }
+                cpp_out.push_str("};\n\n");
             }
-            cpp_out.push_str("}\n\n");
+            _ => {} // Other statement types are handled in the second pass (for main's body)
         }
     }
     if is_toplevel {
@@ -56,17 +83,19 @@ fn _generate_cpp_code_with_vars(ast_nodes: &[AstNode], is_toplevel: bool, declar
     }
     // Second pass: emit all non-function statements (main body)
     for node in ast_nodes {
-        if let AstNode::Statement(Statement::FunctionDef { .. }) = node {
+        if matches!(node, AstNode::Statement(Statement::FunctionDef { .. }) | AstNode::Statement(Statement::ClassDef { .. })) {
             continue;
         }
+        // DEBUG: Print node kind for troubleshooting
+        eprintln!("Codegen node: {:?}", node);
         match node {
             AstNode::Statement(Statement::Print(expr)) => {
                 let expr_code = emit_expression_cpp(expr)?;
                 cpp_out.push_str(&format!("    eppx_print({});\n", expr_code));
-            }            AstNode::Statement(Statement::Assignment { name, operator, value }) => {
+            }
+            AstNode::Statement(Statement::Assignment { name, operator, value }) => {
                 let value_cpp = emit_expression_cpp(value)?;
                 if !declared_vars.contains(name) {
-                    // For new variables, declare and initialize in one statement
                     let type_str = match **value {
                         Expression::StringLiteral(_) => "std::string",
                         Expression::IntegerLiteral(_) => "long long",
@@ -83,28 +112,25 @@ fn _generate_cpp_code_with_vars(ast_nodes: &[AstNode], is_toplevel: bool, declar
                         },
                         _ => "auto",
                     };
-                    // Declare and initialize in one step
                     match operator {
                         AssignmentOperator::Assign => {
-                            cpp_out.push_str(&format!("    {} {} = {};\n", type_str, name, value_cpp));
+                            cpp_out.push_str(&format!("    {} {} = {};", type_str, name, value_cpp));
                         }
                         _ => {
-                            // For compound assignments, we need the variable to exist first
-                            // This shouldn't happen in well-formed code, but handle it gracefully
-                            cpp_out.push_str(&format!("    {} {} = 0;\n", type_str, name));
+                            cpp_out.push_str(&format!("    {} {} = 0;", type_str, name));
                             let op_assign_str = match operator {
-                                AssignmentOperator::AddAssign => format!("    {} += {};\n", name, value_cpp),
-                                AssignmentOperator::SubAssign => format!("    {} -= {};\n", name, value_cpp),
-                                AssignmentOperator::MulAssign => format!("    {} *= {};\n", name, value_cpp),
-                                AssignmentOperator::DivAssign => format!("    {} /= {};\n", name, value_cpp),
-                                AssignmentOperator::ModAssign => format!("    {} %= {};\n", name, value_cpp),
-                                AssignmentOperator::PowAssign => format!("    {} = static_cast<long long>(std::pow({}, {}));\n", name, name, value_cpp),
-                                AssignmentOperator::FloorDivAssign => format!("    {} /= {};\n", name, value_cpp),
-                                AssignmentOperator::BitAndAssign => format!("    {} &= {};\n", name, value_cpp),
-                                AssignmentOperator::BitOrAssign => format!("    {} |= {};\n", name, value_cpp),
-                                AssignmentOperator::BitXorAssign => format!("    {} ^= {};\n", name, value_cpp),
-                                AssignmentOperator::LShiftAssign => format!("    {} <<= {};\n", name, value_cpp),
-                                AssignmentOperator::RShiftAssign => format!("    {} >>= {};\n", name, value_cpp),
+                                AssignmentOperator::AddAssign => format!("    {} += {};", name, value_cpp),
+                                AssignmentOperator::SubAssign => format!("    {} -= {};", name, value_cpp),
+                                AssignmentOperator::MulAssign => format!("    {} *= {};", name, value_cpp),
+                                AssignmentOperator::DivAssign => format!("    {} /= {};", name, value_cpp),
+                                AssignmentOperator::ModAssign => format!("    {} %= {};", name, value_cpp),
+                                AssignmentOperator::PowAssign => format!("    {} = static_cast<long long>(std::pow({}, {}));", name, name, value_cpp),
+                                AssignmentOperator::FloorDivAssign => format!("    {} /= {};", name, value_cpp),
+                                AssignmentOperator::BitAndAssign => format!("    {} &= {};", name, value_cpp),
+                                AssignmentOperator::BitOrAssign => format!("    {} |= {};", name, value_cpp),
+                                AssignmentOperator::BitXorAssign => format!("    {} ^= {};", name, value_cpp),
+                                AssignmentOperator::LShiftAssign => format!("    {} <<= {};", name, value_cpp),
+                                AssignmentOperator::RShiftAssign => format!("    {} >>= {};", name, value_cpp),
                                 _ => unreachable!()
                             };
                             cpp_out.push_str(&op_assign_str);
@@ -112,21 +138,20 @@ fn _generate_cpp_code_with_vars(ast_nodes: &[AstNode], is_toplevel: bool, declar
                     }
                     declared_vars.insert(name.clone());
                 } else {
-                    // Variable already exists, just assign
                     let op_assign_str = match operator {
-                        AssignmentOperator::Assign => format!("    {} = {};\n", name, value_cpp),
-                        AssignmentOperator::AddAssign => format!("    {} += {};\n", name, value_cpp),
-                        AssignmentOperator::SubAssign => format!("    {} -= {};\n", name, value_cpp),
-                        AssignmentOperator::MulAssign => format!("    {} *= {};\n", name, value_cpp),
-                        AssignmentOperator::DivAssign => format!("    {} /= {};\n", name, value_cpp),
-                        AssignmentOperator::ModAssign => format!("    {} %= {};\n", name, value_cpp),
-                        AssignmentOperator::PowAssign => format!("    {} = static_cast<long long>(std::pow({}, {}));\n", name, name, value_cpp),
-                        AssignmentOperator::FloorDivAssign => format!("    {} /= {};\n", name, value_cpp),
-                        AssignmentOperator::BitAndAssign => format!("    {} &= {};\n", name, value_cpp),
-                        AssignmentOperator::BitOrAssign => format!("    {} |= {};\n", name, value_cpp),
-                        AssignmentOperator::BitXorAssign => format!("    {} ^= {};\n", name, value_cpp),
-                        AssignmentOperator::LShiftAssign => format!("    {} <<= {};\n", name, value_cpp),
-                        AssignmentOperator::RShiftAssign => format!("    {} >>= {};\n", name, value_cpp),
+                        AssignmentOperator::Assign => format!("    {} = {};", name, value_cpp),
+                        AssignmentOperator::AddAssign => format!("    {} += {};", name, value_cpp),
+                        AssignmentOperator::SubAssign => format!("    {} -= {};", name, value_cpp),
+                        AssignmentOperator::MulAssign => format!("    {} *= {};", name, value_cpp),
+                        AssignmentOperator::DivAssign => format!("    {} /= {};", name, value_cpp),
+                        AssignmentOperator::ModAssign => format!("    {} %= {};", name, value_cpp),
+                        AssignmentOperator::PowAssign => format!("    {} = static_cast<long long>(std::pow({}, {}));", name, name, value_cpp),
+                        AssignmentOperator::FloorDivAssign => format!("    {} /= {};", name, value_cpp),
+                        AssignmentOperator::BitAndAssign => format!("    {} &= {};", name, value_cpp),
+                        AssignmentOperator::BitOrAssign => format!("    {} |= {};", name, value_cpp),
+                        AssignmentOperator::BitXorAssign => format!("    {} ^= {};", name, value_cpp),
+                        AssignmentOperator::LShiftAssign => format!("    {} <<= {};", name, value_cpp),
+                        AssignmentOperator::RShiftAssign => format!("    {} >>= {};", name, value_cpp),
                     };
                     cpp_out.push_str(&op_assign_str);
                 }
@@ -180,7 +205,8 @@ fn _generate_cpp_code_with_vars(ast_nodes: &[AstNode], is_toplevel: bool, declar
                 while_code.push_str(&emit_block(body, declared_vars)?);
                 while_code.push_str("    }\n");
                 cpp_out.push_str(&while_code);
-            }            AstNode::Statement(Statement::For { var, iterable, body }) => {
+            }
+            AstNode::Statement(Statement::For { var, iterable, body }) => {
                 let emit_block = |stmts: &Vec<AstNode>, declared_vars: &mut HashSet<String>| -> Result<String, String> {
                     let mut block = String::new();
                     for stmt in stmts {
@@ -209,12 +235,28 @@ fn _generate_cpp_code_with_vars(ast_nodes: &[AstNode], is_toplevel: bool, declar
                     let return_value = emit_expression_cpp(return_expr)?;
                     cpp_out.push_str(&format!("    return {};\n", return_value));
                 } else {
-                    cpp_out.push_str("    return;\n"); // For void-like functions returning nothing explicitly
+                    cpp_out.push_str("    return;\n");
                 }
             }
             AstNode::Statement(Statement::ExpressionStatement(expr)) => {
-                let expr_code = emit_expression_cpp(expr)?;
-                cpp_out.push_str(&format!("    {};\n", expr_code)); // Emit the expression, typically for side effects
+                match &**expr { // Dereference expr to match against Expression
+                    Expression::Identifier(name) if name == "pass" => {
+                        cpp_out.push_str("    ; // pass statement\n");
+                    }
+                    _ => {
+                        let expr_code = emit_expression_cpp(expr)?;
+                        cpp_out.push_str(&format!("    {};\n", expr_code));
+                    }
+                }
+            }
+            AstNode::Statement(Statement::Break) => {
+                cpp_out.push_str("    break;\n");
+            }
+            AstNode::Statement(Statement::Continue) => {
+                cpp_out.push_str("    continue;\n");
+            }
+            AstNode::Statement(Statement::Pass) => {
+                cpp_out.push_str("    ; // pass statement\n");
             }
             _ => {}
         }
@@ -237,8 +279,8 @@ fn emit_expression_cpp(expr: &Expression) -> Result<String, String> {
         Expression::Identifier(name) => Ok(name.clone()),        Expression::UnaryOperation { op, operand } => {
             let operand_cpp = emit_expression_cpp(operand)?;
             match op {
-                UnaryOp::Not => Ok(format!("!({})", operand_cpp)), // C++ bool context, will cast to int if needed by print
-                UnaryOp::BitNot => Ok(format!("~({})", operand_cpp)),
+                UnaryOp::Not => Ok(format!("!{}", operand_cpp)), // C++ bool context, will cast to int if needed by print
+                UnaryOp::BitNot => Ok(format!("~{}", operand_cpp)),
             }
         }
         Expression::FunctionCall { name, args } => {
@@ -281,12 +323,12 @@ fn emit_expression_cpp(expr: &Expression) -> Result<String, String> {
                 BinOp::And => {
                     // In Python, 'and' returns the first falsy value or the last value
                     // In C++, && returns bool. For simplicity, we'll use && but cast to bool context
-                    return Ok(format!("(({}) && ({}))", l, r));
+                    return Ok(format!("{} && {}", l, r));
                 },
                 BinOp::Or => {
                     // In Python, 'or' returns the first truthy value or the last value  
                     // In C++, || returns bool. For simplicity, we'll use || but cast to bool context
-                    return Ok(format!("(({}) || ({}))", l, r));
+                    return Ok(format!("{} || {}", l, r));
                 },
                 // Bitwise
                 BinOp::BitAnd => "&",
@@ -295,8 +337,8 @@ fn emit_expression_cpp(expr: &Expression) -> Result<String, String> {
                 BinOp::LShift => "<<",
                 BinOp::RShift => ">>",
                 // Identity (basic C++ translation, not Python's object identity)
-                BinOp::Is => return Ok(format!("({} == {}) /* Placeholder for IS */", l, r)), // Primitive check
-                BinOp::IsNot => return Ok(format!("({} != {}) /* Placeholder for IS NOT */", l, r)), // Primitive check
+                BinOp::Is => return Ok(format!("{} == {} /* Placeholder for IS */", l, r)), // Primitive check
+                BinOp::IsNot => return Ok(format!("{} != {} /* Placeholder for IS NOT */", l, r)), // Primitive check
                 // Membership (basic C++ string translation, not general purpose)
                 BinOp::In => {
                     // Very basic string 'in' check. Assumes l is char/substring, r is string.
@@ -304,13 +346,13 @@ fn emit_expression_cpp(expr: &Expression) -> Result<String, String> {
                     // Example: r.find(l) != std::string::npos
                     // For now, let's assume r is a string and l is a string to find.
                     // This is highly simplified.
-                    return Ok(format!("({}.find({}) != std::string::npos) /* Placeholder for IN */", r, l));
+                    return Ok(format!("{}.find({}) != std::string::npos /* Placeholder for IN */", r, l));
                 }
                 BinOp::NotIn => {
-                    return Ok(format!("({}.find({}) == std::string::npos) /* Placeholder for NOT IN */", r, l));
+                    return Ok(format!("{}.find({}) == std::string::npos /* Placeholder for NOT IN */", r, l));
                 }
             };
-            Ok(format!("({} {} {})", l, op_str, r))
+            Ok(format!("{} {} {}", l, op_str, r))
         }
         _ => Err(String::from("Unsupported expression type for C++ codegen"))
     }
@@ -346,6 +388,123 @@ fn _emit_cpp_for_variable_declaration(name: &str, value: &Box<Expression>, is_ne
         // For assignments, we assume the type matches the existing variable's type
         // In a real system, we'd check the symbol table or existing declarations
         format!("{} = {}", name, emit_expression_cpp(value).unwrap())
+    }
+}
+
+fn infer_cpp_type_for_static_member(expr: &Expression) -> &str {
+    match expr {
+        Expression::StringLiteral(_) => "std::string",
+        Expression::IntegerLiteral(_) => "long long",
+        Expression::FloatLiteral(_) => "double",
+        // TODO: More sophisticated type inference if assigned from complex expressions
+        _ => "auto", // Fallback, but C++17 static inline auto members can be tricky without const/constexpr
+    }
+}
+
+fn emit_method_cpp(name: &str, params: &[String], body: &[AstNode]) -> Result<String, String> {
+    let mut method_cpp = String::new();
+    let param_list = params.iter().map(|p| format!("auto {}", p)).collect::<Vec<_>>().join(", ");
+    
+    // Create a new scope for method's local variables
+    let mut declared_vars_method = HashSet::new();
+    for p in params {
+        declared_vars_method.insert(p.clone());
+    }
+
+    let body_cpp = _generate_cpp_code_with_vars(body, false, &mut declared_vars_method)?;
+    
+    method_cpp.push_str(&format!("    auto {}({}) {{\n", name, param_list)); // Methods are public by default in struct
+    method_cpp.push_str(&body_cpp.lines().map(|l| format!("    {}\n", l)).collect::<String>()); // Indent body
+    
+    let has_return = body.iter().any(|node| matches!(node, AstNode::Statement(Statement::Return(_))));
+    if !has_return {
+        method_cpp.push_str("        return 0;\n"); // Default return for non-void methods
+    }
+    method_cpp.push_str("    }\n");
+    Ok(method_cpp)
+}
+
+fn infer_param_types_from_calls<'a>(fn_name: &str, param_count: usize, ast_nodes: &'a [AstNode]) -> Vec<&'static str> {
+    // For each parameter, collect all types seen at call sites
+    let mut param_types: Vec<&'static str> = vec!["long long"; param_count]; // default to long long
+    for node in ast_nodes {
+        match node {
+            AstNode::Statement(Statement::ExpressionStatement(expr)) | AstNode::Statement(Statement::Print(expr)) => {
+                collect_param_types_from_expr(expr, fn_name, &mut param_types);
+            }
+            AstNode::Statement(Statement::Assignment { value, .. }) => {
+                collect_param_types_from_expr(value, fn_name, &mut param_types);
+            }
+            AstNode::Statement(Statement::If { condition, then_body, elifs, else_body }) => {
+                collect_param_types_from_expr(condition, fn_name, &mut param_types);
+                for (_, body) in elifs {
+                    let sub = infer_param_types_from_calls(fn_name, param_count, body);
+                    for (i, t) in sub.iter().enumerate() {
+                        if *t == "std::string" { param_types[i] = "std::string"; }
+                    }
+                }
+                if let Some(body) = else_body {
+                    let sub = infer_param_types_from_calls(fn_name, param_count, body);
+                    for (i, t) in sub.iter().enumerate() {
+                        if *t == "std::string" { param_types[i] = "std::string"; }
+                    }
+                }
+                let sub = infer_param_types_from_calls(fn_name, param_count, then_body);
+                for (i, t) in sub.iter().enumerate() {
+                    if *t == "std::string" { param_types[i] = "std::string"; }
+                }
+            }
+            AstNode::Statement(Statement::While { condition, body }) => {
+                collect_param_types_from_expr(condition, fn_name, &mut param_types);
+                let sub = infer_param_types_from_calls(fn_name, param_count, body);
+                for (i, t) in sub.iter().enumerate() {
+                    if *t == "std::string" { param_types[i] = "std::string"; }
+                }
+            }
+            AstNode::Statement(Statement::For { iterable, body, .. }) => {
+                collect_param_types_from_expr(iterable, fn_name, &mut param_types);
+                let sub = infer_param_types_from_calls(fn_name, param_count, body);
+                for (i, t) in sub.iter().enumerate() {
+                    if *t == "std::string" { param_types[i] = "std::string"; }
+                }
+            }
+            AstNode::Statement(Statement::FunctionDef { body, .. }) => {
+                let sub = infer_param_types_from_calls(fn_name, param_count, body);
+                for (i, t) in sub.iter().enumerate() {
+                    if *t == "std::string" { param_types[i] = "std::string"; }
+                }
+            }
+            AstNode::Statement(Statement::Return(Some(expr))) => {
+                collect_param_types_from_expr(expr, fn_name, &mut param_types);
+            }
+            _ => {}
+        }
+    }
+    param_types
+}
+
+fn collect_param_types_from_expr(expr: &Expression, fn_name: &str, param_types: &mut Vec<&'static str>) {
+    match expr {
+        Expression::FunctionCall { name, args } if name == fn_name => {
+            for (i, arg) in args.iter().enumerate() {
+                let t = match arg {
+                    Expression::StringLiteral(_) => "std::string",
+                    _ => "long long",
+                };
+                if t == "std::string" { param_types[i] = "std::string"; }
+            }
+        }
+        Expression::BinaryOperation { left, right, .. } => {
+            collect_param_types_from_expr(left, fn_name, param_types);
+            collect_param_types_from_expr(right, fn_name, param_types);
+        }
+        Expression::UnaryOperation { operand, .. } => {
+            collect_param_types_from_expr(operand, fn_name, param_types);
+        }
+        Expression::FunctionCall { args, .. } => {
+            for arg in args { collect_param_types_from_expr(arg, fn_name, param_types); }
+        }
+        _ => {}
     }
 }
 
