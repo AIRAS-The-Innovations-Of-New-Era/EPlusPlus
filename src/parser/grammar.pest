@@ -63,7 +63,7 @@ unary_bitwise_not_power = { unary_bitwise_not_op ~ power | power }
 power = { factor ~ (pow_op ~ factor)* }
 pow_op = @{ "**" }
 
-factor = { function_call | float_literal | integer_literal | string_literal | identifier | "(" ~ expression ~ ")" }
+factor = { function_call | list_literal | tuple_literal | dict_literal | set_literal | frozenset_literal | complex_literal | float_literal | integer_literal | string_literal | none_literal | identifier | "(" ~ expression ~ ")" }
 
 function_call = { identifier ~ "(" ~ argument_list? ~ ")" }
 argument_list = { expression ~ ("," ~ expression)* }
@@ -71,6 +71,7 @@ argument_list = { expression ~ ("," ~ expression)* }
 float_literal = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
 integer_literal = @{ ASCII_DIGIT+ }
 string_literal = @{ "\"" ~ (char* ) ~ "\"" }
+none_literal = @{ "None" } // Added for None
 char = { !("\"" | "\\") ~ ANY }
 identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 NEWLINE = _{ "\r"? ~ "\n" }
@@ -83,3 +84,11 @@ return_statement = { "return" ~ expression? }
 break_statement = { "break" }
 continue_statement = { "continue" }
 pass_statement = { "pass" }
+
+list_literal = { "[" ~ (expression ~ ("," ~ expression)*)? ~ "]" } // Added for list literals
+tuple_literal = { "(" ~ expression ~ ("," ~ expression)+ ~ ")" }
+dict_literal = { "{" ~ (dict_entry ~ ("," ~ dict_entry)*)? ~ "}" }
+dict_entry = { expression ~ ":" ~ expression }
+set_literal = { "{" ~ expression ~ ("," ~ expression)* ~ "}" }
+frozenset_literal = { "frozenset" ~ "(" ~ list_literal ~ ")" }
+complex_literal = { "complex" ~ "(" ~ expression ~ "," ~ expression ~ ")" }

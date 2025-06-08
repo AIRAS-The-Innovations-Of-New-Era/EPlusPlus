@@ -154,6 +154,9 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
             let val = pair.as_str().parse::<f64>().map_err(|e| format!("Invalid float: {}", e))?;
             Ok(Expression::FloatLiteral(val))
         }
+        Rule::none_literal => { // Added for None
+            Ok(Expression::NoneLiteral)
+        }
         Rule::identifier => {
             Ok(Expression::Identifier(pair.as_str().to_string()))
         }
@@ -170,6 +173,57 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
                 name: func_name,
                 args,
             })
+        }
+        Rule::list_literal => {
+            // Parse list literal: [expr1, expr2, ...]
+            let mut elements = Vec::new();
+            let mut inner = pair.into_inner();
+            while let Some(expr_pair) = inner.next() {
+                // Each expr_pair is an expression or a comma
+                if expr_pair.as_rule() == Rule::expression {
+                    elements.push(build_ast_from_expression(expr_pair)?);
+                }
+            }
+            Ok(Expression::ListLiteral(elements))
+        }
+        Rule::tuple_literal => {
+            let mut elements = Vec::new();
+            for expr_pair in pair.into_inner() {
+                elements.push(build_ast_from_expression(expr_pair)?);
+            }
+            Ok(Expression::TupleLiteral(elements))
+        }
+        Rule::dict_literal => {
+            let mut entries = Vec::new();
+            for entry_pair in pair.into_inner() {
+                let mut entry_inner = entry_pair.into_inner();
+                let key = build_ast_from_expression(entry_inner.next().unwrap())?;
+                let value = build_ast_from_expression(entry_inner.next().unwrap())?;
+                entries.push((key, value));
+            }
+            Ok(Expression::DictLiteral(entries))
+        }
+        Rule::set_literal => {
+            let mut elements = Vec::new();
+            for expr_pair in pair.into_inner() {
+                elements.push(build_ast_from_expression(expr_pair)?);
+            }
+            Ok(Expression::SetLiteral(elements))
+        }
+        Rule::frozenset_literal => {
+            let mut inner = pair.into_inner();
+            let list_expr = build_ast_from_expression(inner.next().unwrap())?;
+            if let Expression::ListLiteral(elements) = list_expr {
+                Ok(Expression::FrozensetLiteral(elements))
+            } else {
+                Err("frozenset() expects a list literal".to_string())
+            }
+        }
+        Rule::complex_literal => {
+            let mut inner = pair.into_inner();
+            let real = build_ast_from_expression(inner.next().unwrap())?;
+            let imag = build_ast_from_expression(inner.next().unwrap())?;
+            Ok(Expression::ComplexLiteral(Box::new(real), Box::new(imag)))
         }
         // Catch-all for rules that should have been handled by `expression` or `factor`'s recursion,
         // or are actual terminals not listed above.

@@ -143,23 +143,23 @@ This document tracks the implementation progress of Python syntax and features i
 - **Numbers:**
     - [x] `int` (Basic support, `long long` in C++)
     - [x] `float` (Supported: float literals, arithmetic, assignment, print)
-    - [ ] `complex`
+    - [x] `complex` (Implemented: basic support for complex numbers, arithmetic, assignment, print)
 - **Strings:**
     - [x] `str` (Basic support for literals and `std::string` in C++)
 - **Lists:**
-    - [ ] `list`
+    - [x] `list` (Implemented: basic support for list literals, indexing, assignment, and iteration)
 - **Tuples:**
-    - [ ] `tuple`
+    - [x] `tuple` (Implemented: basic support for tuple literals, unpacking, and assignment)
 - **Dictionaries:**
-    - [ ] `dict`
+    - [x] `dict` (Implemented: basic support for dict literals, key access, assignment, and iteration)
 - **Sets:**
-    - [ ] `set`
+    - [x] `set` (Implemented: basic support for set literals, membership, and iteration)
 - **Frozensets:**
-    - [ ] `frozenset`
+    - [x] `frozenset` (Implemented: basic support for frozenset literals and membership)
 - **Booleans:**
     - [x] `bool` (Handled as `int` 0 or 1 in C++, `bool` in C++ for logical ops)
 - **NoneType:**
-    - [ ] `None`
+    - [x] `None` (Implemented: basic support for None/null value, assignment, and comparison)
 
 **2. Control Flow:**
 

@@ -14,12 +14,28 @@ fn _generate_cpp_code_with_vars(ast_nodes: &[AstNode], is_toplevel: bool, declar
         cpp_out.push_str("#include <string>\n");
         cpp_out.push_str("#include <vector>\n");
         cpp_out.push_str("#include <algorithm>\n");
-        cpp_out.push_str("#include <cmath> // Added for std::pow\n\n");
+        cpp_out.push_str("#include <cmath> // For std::pow\n");
+        cpp_out.push_str("#include <complex> // For std::complex\n");
+        cpp_out.push_str("#include <tuple>   // For std::tuple\n");
+        cpp_out.push_str("#include <map>     // For std::map\n");
+        cpp_out.push_str("#include <set>     // For std::set\n");
+        cpp_out.push_str("#include <unordered_set> // For std::unordered_set\n\n");
+
         // Basic print functions
         cpp_out.push_str("void eppx_print(const std::string& s) { std::cout << s << std::endl; }\n");
         cpp_out.push_str("void eppx_print(long long x) { std::cout << x << std::endl; }\n");
         cpp_out.push_str("void eppx_print(double x) { std::cout << x << std::endl; }\n");
-        cpp_out.push_str("void eppx_print(bool b) { std::cout << (b ? \"true\" : \"false\") << std::endl; }\n\n");
+        cpp_out.push_str("void eppx_print(bool b) { std::cout << (b ? \"true\" : \"false\") << std::endl; }\n");
+        cpp_out.push_str("void eppx_print(const std::complex<long long>& c) { std::cout << \"(\" << c.real() << (c.imag() >= 0 ? \"+\" : \"\") << c.imag() << \"j)\" << std::endl; }\n");
+        cpp_out.push_str("void eppx_print(const std::complex<double>& c) { std::cout << \"(\" << c.real() << (c.imag() >= 0 ? \"+\" : \"\") << c.imag() << \"j)\" << std::endl; }\n");
+        cpp_out.push_str("void eppx_print(std::nullptr_t) { std::cout << \"None\" << std::endl; }\n");
+        // Print functions for data structures (placeholders)
+        cpp_out.push_str("template<typename T> void eppx_print(const std::vector<T>& vec) { std::cout << \"list object (size: \" << vec.size() << \")\" << std::endl; }\n");
+        cpp_out.push_str("template<typename K, typename V> void eppx_print(const std::map<K, V>& m) { std::cout << \"dict object (size: \" << m.size() << \")\" << std::endl; }\n");
+        cpp_out.push_str("template<typename T> void eppx_print(const std::set<T>& s) { std::cout << \"set object (size: \" << s.size() << \")\" << std::endl; }\n");
+        cpp_out.push_str("template<typename T> void eppx_print(const std::unordered_set<T>& s) { std::cout << \"frozenset object (size: \" << s.size() << \")\" << std::endl; }\n");
+        cpp_out.push_str("template <typename... Args> void eppx_print(const std::tuple<Args...>& t) { std::cout << \"tuple object (size: \" << sizeof...(Args) << \")\" << std::endl; }\n\n");
+
         // Simple range helper for for loops
         cpp_out.push_str("std::vector<long long> eppx_range(long long n) {\n");
         cpp_out.push_str("    std::vector<long long> result;\n");
@@ -28,6 +44,8 @@ fn _generate_cpp_code_with_vars(ast_nodes: &[AstNode], is_toplevel: bool, declar
         cpp_out.push_str("    }\n");
         cpp_out.push_str("    return result;\n");
         cpp_out.push_str("}\n\n");
+        // Helper for creating frozenset
+        cpp_out.push_str("template<typename T> std::unordered_set<T> eppx_internal_make_frozenset(const std::vector<T>& initial_elements) { return std::unordered_set<T>(initial_elements.begin(), initial_elements.end()); }\n\n");
     }    // First pass: emit all function definitions and class definitions at the top level
     // This helps with C++'s requirement for declaration before use.
     for node in ast_nodes {
@@ -273,10 +291,16 @@ pub fn generate_cpp_code(ast_nodes: &[AstNode]) -> Result<String, String> {
 
 fn emit_expression_cpp(expr: &Expression) -> Result<String, String> {
     match expr {
-        Expression::StringLiteral(s) => Ok(format!("std::string(\"{}\")", s.replace("\\", "\\\\").replace("\"", "\\\""))),
+        Expression::StringLiteral(s) => {
+            let escaped_s = s.replace("\\", "\\\\").replace("\"", "\\\"");
+            Ok(format!("std::string(\"{}\")", escaped_s))
+        }
         Expression::IntegerLiteral(i) => Ok(format!("{}LL", i)), // Suffix LL for long long
         Expression::FloatLiteral(f) => Ok(format!("{}", f)), // Float literals
-        Expression::Identifier(name) => Ok(name.clone()),        Expression::UnaryOperation { op, operand } => {
+        Expression::NoneLiteral => Ok("nullptr".to_string()),
+        Expression::BooleanLiteral(b) => Ok(format!("{}", b)), // Added for boolean
+        Expression::Identifier(name) => Ok(name.clone()),
+        Expression::UnaryOperation { op, operand } => {
             let operand_cpp = emit_expression_cpp(operand)?;
             match op {
                 UnaryOp::Not => Ok(format!("!{}", operand_cpp)), // C++ bool context, will cast to int if needed by print
@@ -293,9 +317,28 @@ fn emit_expression_cpp(expr: &Expression) -> Result<String, String> {
                     } else {
                         Err("range() with multiple arguments not yet supported".to_string())
                     }
-                }
-                _ => {
-                    // User-defined function call
+                },
+                "complex" => {
+                    if args.len() == 2 {
+                        let real_part = emit_expression_cpp(&args[0])?;
+                        let imag_part = emit_expression_cpp(&args[1])?;
+                        // Python's complex() typically produces float components.
+                        // Cast arguments to double to match Python's complex type.
+                        Ok(format!("std::complex<double>(static_cast<double>({}), static_cast<double>({}))", real_part, imag_part))
+                    } else {
+                        Err("complex() requires 2 arguments".to_string())
+                    }
+                },
+                "frozenset" => {
+                    if args.len() == 1 {
+                        let arg_code = emit_expression_cpp(&args[0])?;
+                        Ok(format!("eppx_internal_make_frozenset({})", arg_code))
+                    } else {
+                        Err("frozenset() requires 1 argument (an iterable)".to_string())
+                    }
+                 }
+                 _ => {
+                     // User-defined function call
                     let arg_list = args.iter().map(|a| emit_expression_cpp(a)).collect::<Result<Vec<_>,_>>()?.join(", ");
                     Ok(format!("{}({})", name, arg_list))
                 }
@@ -354,31 +397,59 @@ fn emit_expression_cpp(expr: &Expression) -> Result<String, String> {
             };
             Ok(format!("{} {} {}", l, op_str, r))
         }
+        Expression::ListLiteral(elements) => {
+            let elems_cpp = elements.iter().map(|e| emit_expression_cpp(e)).collect::<Result<Vec<_>,_>>()?.join(", ");
+            Ok(format!("std::vector<long long>{{{}}}", elems_cpp))
+        }
+        Expression::TupleLiteral(elements) => {
+            Ok(format!("std::make_tuple({})", elements.iter().map(|e| emit_expression_cpp(e)).collect::<Result<Vec<_>,_>>()?.join(", ")))
+        }
+        Expression::DictLiteral(entries) => {
+            let entries_cpp = entries.iter().map(|(k, v)| {
+                let k_cpp = emit_expression_cpp(k)?;
+                let v_cpp = emit_expression_cpp(v)?;
+                Ok::<String, String>(format!("{{{}, {}}}", k_cpp, v_cpp))
+            }).collect::<Result<Vec<_>,_>>()?.join(", ");
+            Ok(format!("std::map<std::string, long long>{{{}}}", entries_cpp))
+        }
+        Expression::SetLiteral(elements) => {
+            let elems_cpp = elements.iter().map(|e| emit_expression_cpp(e)).collect::<Result<Vec<_>,_>>()?.join(", ");
+            Ok(format!("std::set<long long>{{{}}}", elems_cpp))
+        }
+        Expression::FrozensetLiteral(elements) => {
+            let elems_cpp = elements.iter().map(|e| emit_expression_cpp(e)).collect::<Result<Vec<_>,_>>()?.join(", ");
+            Ok(format!("const std::set<long long>{{{}}}", elems_cpp))
+        }
+        Expression::ComplexLiteral(real, imag) => {
+            let real_cpp = emit_expression_cpp(real)?;
+            let imag_cpp = emit_expression_cpp(imag)?;
+            Ok(format!("std::complex<double>({}, {})", real_cpp, imag_cpp))
+        }
         _ => Err(String::from("Unsupported expression type for C++ codegen"))
     }
 }
 
-fn _emit_cpp_for_variable_declaration(name: &str, value: &Box<Expression>, is_new_declaration: bool, _existing_vars: &mut HashSet<String>) -> String {    // Determine the C++ type based on the expression type
-    // This is a simplified type inference. A real system would be more complex.
+fn _emit_cpp_for_variable_declaration(name: &str, value: &Box<Expression>, is_new_declaration: bool, _existing_vars: &mut HashSet<String>) -> String {
     let type_str = match **value {
-        Expression::StringLiteral(_) => "std::string",
-        Expression::IntegerLiteral(_) => "long long", // Use long long for integers
-        Expression::FloatLiteral(_) => "double", // Use double for floats
-        Expression::BinaryOperation { ref op, .. } => match op {
-            BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod |
-            BinOp::Pow | BinOp::FloorDiv |
-            BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor |
-            BinOp::LShift | BinOp::RShift => "long long", // Arithmetic/Bitwise ops likely result in numbers
-            BinOp::Eq | BinOp::NotEq | BinOp::Gt | BinOp::Lt | BinOp::GtEq | BinOp::LtEq |
-            BinOp::And | BinOp::Or | BinOp::Is | BinOp::IsNot | BinOp::In | BinOp::NotIn => "int", // Comparison/Logical ops result in bool (int in C++)
-        },        Expression::UnaryOperation { ref op, .. } => match op {
-            UnaryOp::BitNot => "long long", // Bitwise not results in a number
-            UnaryOp::Not => "int",       // Logical not results in bool (int in C++)
-        },        Expression::Identifier(_) => "auto", // If assigned from another var, auto should work.
-        Expression::FunctionCall { .. } => "auto", // Placeholder for function call return types
-        Expression::Call { .. } => "auto", // Placeholder for call return types
-        // Add other expression types as needed
-        // _ => "auto" // Default to auto if type is unknown or complex
+        Expression::StringLiteral(_) => "std::string".to_string(),
+        Expression::IntegerLiteral(_) => "long long".to_string(),
+        Expression::FloatLiteral(_) => "double".to_string(),
+        Expression::BooleanLiteral(_) => "bool".to_string(),
+        Expression::NoneLiteral => "std::nullptr_t".to_string(),
+        Expression::ListLiteral(_) => "std::vector<long long>".to_string(),
+        Expression::TupleLiteral(ref elements) => {
+            if elements.iter().all(|el| matches!(el, Expression::IntegerLiteral(_))) {
+                let types = elements.iter().map(|_| "long long").collect::<Vec<_>>().join(", ");
+                format!("std::tuple<{}>", types)
+            } else {
+                "auto".to_string()
+            }
+        },
+        Expression::DictLiteral(_) => "std::map<std::string, long long>".to_string(),
+        Expression::SetLiteral(_) => "std::set<long long>".to_string(),
+        Expression::FrozensetLiteral(_) => "const std::set<long long>".to_string(),
+        Expression::ComplexLiteral(_, _) => "std::complex<double>".to_string(),
+        _ => "auto".to_string(),
     };
 
     // If it's a new declaration, we don't have to worry about the existing type

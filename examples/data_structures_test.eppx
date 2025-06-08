@@ -1,0 +1,29 @@
+# Data structure literal tests for E++
+
+# List
+lst = [1, 2, 3]
+print(lst)
+
+# Tuple
+mytuple = (1, 2, 3)
+print(mytuple)
+
+# Dict
+d = {"a": 1, "b": 2}
+print(d)
+
+# Set
+s = {1, 2, 3}
+print(s)
+
+# Frozenset
+fs = frozenset([1, 2, 3])
+print(fs)
+
+# Complex
+c = complex(1, 2)
+print(c)
+
+# None
+n = None
+print(n)

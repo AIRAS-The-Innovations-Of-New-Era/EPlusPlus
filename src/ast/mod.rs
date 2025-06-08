@@ -78,7 +78,15 @@ pub enum UnaryOp {
 pub enum Expression {
     StringLiteral(String),
     IntegerLiteral(i64),
-    FloatLiteral(f64), // Added float literal support
+    FloatLiteral(f64),
+    BooleanLiteral(bool),
+    NoneLiteral, // Added for None
+    ListLiteral(Vec<Expression>), // Added for list literals
+    TupleLiteral(Vec<Expression>), // For tuple literals
+    DictLiteral(Vec<(Expression, Expression)>), // For dict literals
+    SetLiteral(Vec<Expression>), // For set literals
+    FrozensetLiteral(Vec<Expression>), // For frozenset literals
+    ComplexLiteral(Box<Expression>, Box<Expression>), // For complex(a, b)
     Identifier(String),
     BinaryOperation {
         left: Box<Expression>,
@@ -92,6 +100,12 @@ pub enum Expression {
         name: String,
         args: Vec<Expression>,
     },
+    ListComprehension {
+        element: Box<Expression>,
+        var: String,
+        iter: Box<Expression>,
+        condition: Option<Box<Expression>>,
+    }, // For list comprehensions (future)
     // Future: etc.
     Call { /* ... */ },
 }
