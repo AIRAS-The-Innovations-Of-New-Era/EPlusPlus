@@ -150,13 +150,26 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
         }        Rule::integer_literal => {
             let val = pair.as_str().parse::<i64>().map_err(|e| format!("Invalid integer: {}", e))?;
             Ok(Expression::IntegerLiteral(val))
-        }
-        Rule::float_literal => {
+        }        Rule::float_literal => {
             let val = pair.as_str().parse::<f64>().map_err(|e| format!("Invalid float: {}", e))?;
             Ok(Expression::FloatLiteral(val))
         }
         Rule::identifier => {
             Ok(Expression::Identifier(pair.as_str().to_string()))
+        }
+        Rule::function_call => {
+            let mut inner = pair.into_inner();
+            let func_name = inner.next().unwrap().as_str().to_string();
+            let mut args = Vec::new();
+            if let Some(arg_list) = inner.next() {
+                for arg_pair in arg_list.into_inner() {
+                    args.push(build_ast_from_expression(arg_pair)?);
+                }
+            }
+            Ok(Expression::FunctionCall {
+                name: func_name,
+                args,
+            })
         }
         // Catch-all for rules that should have been handled by `expression` or `factor`'s recursion,
         // or are actual terminals not listed above.
@@ -199,8 +212,7 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                 operator,
                 value: Box::new(value_expr),
             }))
-        }
-        Rule::if_statement => {
+        }        Rule::if_statement => {
             let mut inner_rules = inner.into_inner();
             let condition_expr = build_ast_from_expression(inner_rules.next().unwrap())?;
             let then_block_pair = inner_rules.next().unwrap();
@@ -234,6 +246,27 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                 then_body,
                 elifs,
                 else_body,
+            }))
+        }        Rule::while_statement => {
+            let mut inner_rules = inner.into_inner();
+            let condition_expr = build_ast_from_expression(inner_rules.next().unwrap())?;
+            let block_pair = inner_rules.next().unwrap();
+            let body = block_pair.into_inner().map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
+            Ok(AstNode::Statement(Statement::While {
+                condition: Box::new(condition_expr),
+                body,
+            }))
+        }
+        Rule::for_statement => {
+            let mut inner_rules = inner.into_inner();
+            let var_name = inner_rules.next().unwrap().as_str().to_string();
+            let iterable_expr = build_ast_from_expression(inner_rules.next().unwrap())?;
+            let block_pair = inner_rules.next().unwrap();
+            let body = block_pair.into_inner().map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
+            Ok(AstNode::Statement(Statement::For {
+                var: var_name,
+                iterable: Box::new(iterable_expr),
+                body,
             }))
         }
         _ => Err(format!("Unhandled statement type: {:?}\nContent: '{}'", inner.as_rule(), inner.as_str())),

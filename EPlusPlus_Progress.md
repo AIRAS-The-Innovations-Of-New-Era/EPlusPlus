@@ -142,7 +142,7 @@ This document tracks the implementation progress of Python syntax and features i
 
 - **Numbers:**
     - [x] `int` (Basic support, `long long` in C++)
-    - [ ] `float`
+    - [x] `float` (Supported: float literals, arithmetic, assignment, print)
     - [ ] `complex`
 - **Strings:**
     - [x] `str` (Basic support for literals and `std::string` in C++)
@@ -166,9 +166,12 @@ This document tracks the implementation progress of Python syntax and features i
 - **Conditional Statements:**
     - [x] `if`, `elif`, `else`
 - **Loops:**
-    - [ ] `for`, `while`
+    - [x] `while` (Full support: parsing, AST, codegen, variable scoping, tested June 7, 2025)
+    - [ ] `for`
 - **Loop Control Statements:**
-    - [ ] `break`, `continue`, `pass`
+    - [ ] `break`
+    - [ ] `continue`
+    - [ ] `pass`
 
 **3. Functions (Defining Your Own):**
 

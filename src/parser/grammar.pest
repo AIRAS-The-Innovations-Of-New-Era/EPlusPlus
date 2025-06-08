@@ -3,7 +3,7 @@ COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
 
 program = { SOI ~ statement* ~ EOI }
 
-statement = { assignment | print_statement | if_statement }
+statement = { assignment | print_statement | if_statement | while_statement | for_statement }
 
 assignment_operator = @{ "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "//=" | "&=" | "|=" | "^=" | ">>=" | "<<=" }
 assignment = { identifier ~ assignment_operator ~ expression }
@@ -13,6 +13,10 @@ print_statement = { "print" ~ "(" ~ expression ~ ")" }
 if_statement = { "if" ~ expression ~ block ~ elif_clause* ~ else_clause? }
 elif_clause = { "elif" ~ expression ~ block }
 else_clause = { "else" ~ block }
+
+while_statement = { "while" ~ expression ~ block }
+
+for_statement = { "for" ~ identifier ~ "in" ~ expression ~ block }
 
 block = { "{" ~ statement* ~ "}" }
 
@@ -58,7 +62,10 @@ unary_bitwise_not_power = { unary_bitwise_not_op ~ power | power }
 power = { factor ~ (pow_op ~ factor)* }
 pow_op = @{ "**" }
 
-factor = { float_literal | integer_literal | string_literal | identifier | "(" ~ expression ~ ")" }
+factor = { function_call | float_literal | integer_literal | string_literal | identifier | "(" ~ expression ~ ")" }
+
+function_call = { identifier ~ "(" ~ argument_list? ~ ")" }
+argument_list = { expression ~ ("," ~ expression)* }
 
 float_literal = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
 integer_literal = @{ ASCII_DIGIT+ }

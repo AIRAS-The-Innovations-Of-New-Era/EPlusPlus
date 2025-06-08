@@ -20,7 +20,16 @@ pub enum Statement {
         elifs: Vec<(Expression, Vec<AstNode>)>,
         else_body: Option<Vec<AstNode>>,
     },
-    // Future: For, While, FunctionDef, ClassDef, etc.
+    While {
+        condition: Box<Expression>,
+        body: Vec<AstNode>,
+    },
+    For {
+        var: String,
+        iterable: Box<Expression>,
+        body: Vec<AstNode>,
+    },
+    // Future: FunctionDef, ClassDef, etc.
 }
 
 #[allow(dead_code)]
@@ -61,12 +70,15 @@ pub enum Expression {
         left: Box<Expression>,
         op: BinOp,
         right: Box<Expression>,
-    },
-    UnaryOperation { // New variant for unary operations
+    },    UnaryOperation { // New variant for unary operations
         op: UnaryOp,
         operand: Box<Expression>,
     },
-    // Future: FunctionCall(String, Vec<Expression>), etc.
+    FunctionCall {
+        name: String,
+        args: Vec<Expression>,
+    },
+    // Future: etc.
     Call { /* ... */ },
 }
 

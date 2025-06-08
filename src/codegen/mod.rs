@@ -3,20 +3,34 @@ use crate::ast::{AstNode, Expression, Statement, BinOp, UnaryOp, AssignmentOpera
 use std::collections::HashSet;
 
 pub fn generate_cpp_code_with_toplevel(ast_nodes: &[AstNode], is_toplevel: bool) -> Result<String, String> {
+    let mut declared_vars = HashSet::new();
+    _generate_cpp_code_with_vars(ast_nodes, is_toplevel, &mut declared_vars)
+}
+
+fn _generate_cpp_code_with_vars(ast_nodes: &[AstNode], is_toplevel: bool, declared_vars: &mut HashSet<String>) -> Result<String, String> {
     let mut cpp_out = String::new();
-    let mut declared_vars = HashSet::new(); // Track declared variables
     if is_toplevel {
         cpp_out.push_str("#include <iostream>\n");
         cpp_out.push_str("#include <string>\n");
-        cpp_out.push_str("#include <vector>\n"); // For potential future use with 'in' on lists
-        cpp_out.push_str("#include <algorithm>\n"); // For std::find, potentially for 'in'
+        cpp_out.push_str("#include <vector>\n");
+        cpp_out.push_str("#include <algorithm>\n");
         cpp_out.push_str("#include <cmath> // Added for std::pow\n\n");
         // Basic print functions
         cpp_out.push_str("void eppx_print(const std::string& s) { std::cout << s << std::endl; }\n");
         cpp_out.push_str("void eppx_print(long long x) { std::cout << x << std::endl; }\n"); // Changed int to long long
         cpp_out.push_str("void eppx_print(double x) { std::cout << x << std::endl; }\n"); // Added double for floats
-        cpp_out.push_str("void eppx_print(int x) { std::cout << x << std::endl; }\n"); // Keep int for bools
+        
         cpp_out.push_str("void eppx_print(bool b) { std::cout << (b ? \"true\" : \"false\") << std::endl; }\n\n");
+        
+        // Simple range helper for for loops
+        cpp_out.push_str("std::vector<long long> eppx_range(long long n) {\n");
+        cpp_out.push_str("    std::vector<long long> result;\n");
+        cpp_out.push_str("    for (long long i = 0; i < n; ++i) {\n");
+        cpp_out.push_str("        result.push_back(i);\n");
+        cpp_out.push_str("    }\n");
+        cpp_out.push_str("    return result;\n");
+        cpp_out.push_str("}\n\n");
+        
         // Placeholder for a simple E++ object type for identity checks if needed later
         // cpp_out.push_str("struct EppxObject { long long id; /* other data */ };\n");
         cpp_out.push_str("int main() {\n");
@@ -66,13 +80,12 @@ pub fn generate_cpp_code_with_toplevel(ast_nodes: &[AstNode], is_toplevel: bool)
                     AssignmentOperator::RShiftAssign => format!("    {} >>= {};\n", name, value_cpp),
                 };
                 cpp_out.push_str(&op_assign_str);
-            }
-            AstNode::Statement(Statement::If { condition, then_body, elifs, else_body }) => {
+            }            AstNode::Statement(Statement::If { condition, then_body, elifs, else_body }) => {
                 let mut chain = String::new();
-                let emit_block = |stmts: &Vec<AstNode>| -> Result<String, String> {
+                let emit_block = |stmts: &Vec<AstNode>, declared_vars: &mut HashSet<String>| -> Result<String, String> {
                     let mut block = String::new();
                     for stmt in stmts {
-                        let inner = generate_cpp_code_with_toplevel(&[stmt.clone()], false)?;
+                        let inner = _generate_cpp_code_with_vars(&[stmt.clone()], false, declared_vars)?;
                         for line in inner.lines() {
                             block.push_str(line);
                             block.push('\n');
@@ -82,21 +95,67 @@ pub fn generate_cpp_code_with_toplevel(ast_nodes: &[AstNode], is_toplevel: bool)
                 };
                 let cond_cpp = emit_expression_cpp(condition)?;
                 chain.push_str(&format!("    if ({}) {{\n", cond_cpp));
-                chain.push_str(&emit_block(then_body)?);
+                chain.push_str(&emit_block(then_body, declared_vars)?);
                 chain.push_str("    }");
                 for (elif_cond, elif_body) in elifs {
                     let elif_cond_cpp = emit_expression_cpp(elif_cond)?;
                     chain.push_str(&format!(" else if ({}) {{\n", elif_cond_cpp));
-                    chain.push_str(&emit_block(elif_body)?);
+                    chain.push_str(&emit_block(elif_body, declared_vars)?);
                     chain.push_str("    }");
                 }
                 if let Some(else_body) = else_body {
                     chain.push_str(" else {\n");
-                    chain.push_str(&emit_block(&else_body)?);
+                    chain.push_str(&emit_block(&else_body, declared_vars)?);
                     chain.push_str("    }");
                 }
                 chain.push_str("\n");
                 cpp_out.push_str(&chain);
+            }            AstNode::Statement(Statement::While { condition, body }) => {
+                let emit_block = |stmts: &Vec<AstNode>, declared_vars: &mut HashSet<String>| -> Result<String, String> {
+                    let mut block = String::new();
+                    for stmt in stmts {
+                        let inner = _generate_cpp_code_with_vars(&[stmt.clone()], false, declared_vars)?;
+                        for line in inner.lines() {
+                            block.push_str(line);
+                            block.push('\n');
+                        }
+                    }
+                    Ok(block)
+                };
+                let cond_cpp = emit_expression_cpp(condition)?;
+                let mut while_code = String::new();
+                while_code.push_str(&format!("    while ({}) {{\n", cond_cpp));
+                while_code.push_str(&emit_block(body, declared_vars)?);
+                while_code.push_str("    }\n");
+                cpp_out.push_str(&while_code);
+            }
+            AstNode::Statement(Statement::For { var, iterable, body }) => {
+                let emit_block = |stmts: &Vec<AstNode>, declared_vars: &mut HashSet<String>| -> Result<String, String> {
+                    let mut block = String::new();
+                    for stmt in stmts {
+                        let inner = _generate_cpp_code_with_vars(&[stmt.clone()], false, declared_vars)?;
+                        for line in inner.lines() {
+                            block.push_str(line);
+                            block.push('\n');
+                        }
+                    }
+                    Ok(block)
+                };
+                let iterable_cpp = emit_expression_cpp(iterable)?;
+                let mut for_code = String::new();
+                
+                // Declare the loop variable if not already declared
+                if !declared_vars.contains(var) {
+                    for_code.push_str(&format!("    long long {};\n", var));
+                    declared_vars.insert(var.clone());
+                }
+                
+                // Generate range-based for loop in C++
+                for_code.push_str(&format!("    for (auto {}_val : {}) {{\n", var, iterable_cpp));
+                for_code.push_str(&format!("        {} = {}_val;\n", var, var));
+                for_code.push_str(&emit_block(body, declared_vars)?);
+                for_code.push_str("    }\n");
+                cpp_out.push_str(&for_code);
             }
         }
     }
@@ -115,12 +174,25 @@ fn emit_expression_cpp(expr: &Expression) -> Result<String, String> {
         Expression::StringLiteral(s) => Ok(format!("std::string(\"{}\")", s.replace("\\", "\\\\").replace("\"", "\\\""))),
         Expression::IntegerLiteral(i) => Ok(format!("{}LL", i)), // Suffix LL for long long
         Expression::FloatLiteral(f) => Ok(format!("{}", f)), // Float literals
-        Expression::Identifier(name) => Ok(name.clone()),
-        Expression::UnaryOperation { op, operand } => {
+        Expression::Identifier(name) => Ok(name.clone()),        Expression::UnaryOperation { op, operand } => {
             let operand_cpp = emit_expression_cpp(operand)?;
             match op {
                 UnaryOp::Not => Ok(format!("!({})", operand_cpp)), // C++ bool context, will cast to int if needed by print
                 UnaryOp::BitNot => Ok(format!("~({})", operand_cpp)),
+            }
+        }
+        Expression::FunctionCall { name, args } => {
+            match name.as_str() {
+                "range" => {
+                    // For now, just support range(n) - generates 0 to n-1
+                    if args.len() == 1 {
+                        let arg_cpp = emit_expression_cpp(&args[0])?;
+                        Ok(format!("eppx_range({})", arg_cpp))
+                    } else {
+                        Err("range() with multiple arguments not yet supported".to_string())
+                    }
+                }
+                _ => Err(format!("Unknown function: {}", name))
             }
         }
         Expression::BinaryOperation { left, op, right } => {
@@ -193,13 +265,12 @@ fn _emit_cpp_for_variable_declaration(name: &str, value: &Box<Expression>, is_ne
             BinOp::LShift | BinOp::RShift => "long long", // Arithmetic/Bitwise ops likely result in numbers
             BinOp::Eq | BinOp::NotEq | BinOp::Gt | BinOp::Lt | BinOp::GtEq | BinOp::LtEq |
             BinOp::And | BinOp::Or | BinOp::Is | BinOp::IsNot | BinOp::In | BinOp::NotIn => "int", // Comparison/Logical ops result in bool (int in C++)
-        },
-        Expression::UnaryOperation { ref op, .. } => match op {
+        },        Expression::UnaryOperation { ref op, .. } => match op {
             UnaryOp::BitNot => "long long", // Bitwise not results in a number
             UnaryOp::Not => "int",       // Logical not results in bool (int in C++)
-        },
-        Expression::Identifier(_) => "auto", // If assigned from another var, auto should work.
-        Expression::Call { .. } => "auto", // Placeholder for function call return types
+        },        Expression::Identifier(_) => "auto", // If assigned from another var, auto should work.
+        Expression::FunctionCall { .. } => "auto", // Placeholder for function call return types
+        Expression::Call { .. } => "auto", // Placeholder for call return types
         // Add other expression types as needed
         // _ => "auto" // Default to auto if type is unknown or complex
     };
