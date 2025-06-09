@@ -63,9 +63,25 @@ unary_bitwise_not_power = { unary_bitwise_not_op ~ power | power }
 power = { factor ~ (pow_op ~ factor)* }
 pow_op = @{ "**" }
 
-factor = { function_call | list_literal | tuple_literal | dict_literal | set_literal | frozenset_literal | complex_literal | float_literal | integer_literal | string_literal | none_literal | identifier | "(" ~ expression ~ ")" }
+atom = {
+    lambda_expression |
+    list_literal |
+    tuple_literal |
+    dict_literal |
+    set_literal |
+    frozenset_literal |
+    complex_literal |
+    float_literal |
+    integer_literal |
+    string_literal |
+    none_literal |
+    identifier |
+    "(" ~ expression ~ ")"
+}
 
-function_call = { identifier ~ "(" ~ argument_list? ~ ")" }
+factor = { atom ~ call_suffix* }
+call_suffix = { "(" ~ argument_list? ~ ")" }
+lambda_expression = { "lambda" ~ parameter_list? ~ ":" ~ expression }
 argument_list = { expression ~ ("," ~ expression)* }
 
 float_literal = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }

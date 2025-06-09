@@ -96,9 +96,9 @@ pub enum Expression {
         op: UnaryOp,
         operand: Box<Expression>,
     },
-    FunctionCall {
-        name: String,
-        args: Vec<Expression>,
+    Lambda {
+        params: Vec<String>,
+        body: Box<Expression>,
     },
     ListComprehension {
         element: Box<Expression>,
@@ -106,8 +106,10 @@ pub enum Expression {
         iter: Box<Expression>,
         condition: Option<Box<Expression>>,
     }, // For list comprehensions (future)
-    // Future: etc.
-    Call { /* ... */ },
+    Call {
+        callee: Box<Expression>,
+        args: Vec<Expression>,
+    },
 }
 
 #[allow(dead_code)]

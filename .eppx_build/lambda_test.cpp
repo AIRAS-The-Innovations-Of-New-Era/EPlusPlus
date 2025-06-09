@@ -32,43 +32,19 @@ std::vector<long long> eppx_range(long long n) {
 
 template<typename T> std::unordered_set<T> eppx_internal_make_frozenset(const std::vector<T>& initial_elements) { return std::unordered_set<T>(initial_elements.begin(), initial_elements.end()); }
 
-auto add(long long a, long long b) {
-    return a + b;
-}
-
-auto greet(std::string name) {
-    eppx_print(std::string("Hello, ") + name);
-    return 0;
+auto apply_func(auto f, auto val) {
+    return f(val);
 }
 
 int main() {
-    long long x = 5LL;    long long y = 10LL;    auto z = x + y * 2LL;    eppx_print(z);
-    if (z > 20LL) {
-    eppx_print(std::string("z is large"));
-    } else {
-    eppx_print(std::string("z is small"));
-    }
-    long long count = 0LL;    while (count < 3LL) {
-    eppx_print(count);
-    count = count + 1LL;
-    }
-    long long i;
-    for (auto i_val : eppx_range(3LL)) {
-        i = i_val;
-    eppx_print(i);
-    }
-    auto result = add(7LL, 8LL);    eppx_print(result);
-    greet(std::string("E++"));
-    for (auto i_val : eppx_range(5LL)) {
-        i = i_val;
-    if (i == 2LL) {
-    ; // pass statement
-    } else if (i == 3LL) {
-    continue;
-    } else if (i == 4LL) {
-    break;
-    }
-    eppx_print(i);
-    }
+    auto add = ([=](auto x, auto y) { return x + y; });
+    eppx_print(add(5LL, 3LL));
+    eppx_print(([=](auto a, auto b) { return a * b; })(4LL, 7LL));
+    auto get_msg = ([=]() { return std::string("Hello from lambda!"); });
+    eppx_print(get_msg());
+    eppx_print(apply_func(([=](auto x) { return x * x; }), 9LL));
+    auto complex_lambda = ([=](auto x, auto y, auto z) { return x + y * z - x / y; });
+    eppx_print(complex_lambda(10LL, 5LL, 2LL));
+    eppx_print(std::string("Lambda tests complete."));
     return 0;
 }

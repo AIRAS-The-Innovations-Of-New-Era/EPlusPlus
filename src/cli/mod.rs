@@ -75,8 +75,7 @@ pub fn handle_new_project(project_name: &str) -> Result<String, CliError> {
 pub fn handle_build(file_path: &Path, output_name: Option<&str>) -> Result<String, CliError> {
     if !file_path.exists() {
         return Err(CliError::FileNotFound(file_path.to_path_buf()));
-    }
-    println!("Building {}...", file_path.display());
+    }    println!("Building {}...", file_path.display());
     let ast = parse_eppx_file(file_path).map_err(CliError::Parser)?;
     let cpp_code = generate_cpp_code(&ast).map_err(CliError::Codegen)?;
     let build_dir = Path::new(".eppx_build");

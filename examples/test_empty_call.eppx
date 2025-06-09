@@ -1,0 +1,3 @@
+# Test empty function call
+f = lambda: "hello"
+print(f())

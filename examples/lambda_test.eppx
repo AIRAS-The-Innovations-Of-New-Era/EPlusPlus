@@ -1,0 +1,41 @@
+# Lambda Expressions Test
+
+# Simple lambda assigned to a variable
+add = lambda x, y: x + y
+print(add(5, 3)) # Expected: 8
+
+# Lambda used immediately
+print((lambda a, b: a * b)(4, 7)) # Expected: 28
+
+# Lambda with no parameters
+get_msg = lambda: "Hello from lambda!"
+print(get_msg()) # Expected: Hello from lambda!
+
+# Lambda used as an argument (if function calls can take lambdas)
+def apply_func(f, val) {
+    return f(val)
+}
+
+print(apply_func(lambda x: x * x, 9)) # Expected: 81
+
+# Lambda capturing a variable (Note: C++ codegen uses [=] by default - capture by copy)
+# This specific test might require more advanced closure/capture handling in codegen
+# if the captured variable is modified *after* lambda creation and that modification
+# is expected to be seen *inside* the lambda.
+# For now, [=] means it captures the value at the time of lambda creation.
+# multiplier = 3
+# times_three = lambda y: y * multiplier
+# print(times_three(5)) # Expected: 15
+# multiplier = 4 # This change won't affect times_three with [=] capture
+# print(times_three(5)) # Expected: 15 (still uses multiplier=3)
+
+# Test a lambda that uses a global-like variable (if your scoping allows)
+# global_val = 100
+# add_global = lambda x: x + global_val
+# print(add_global(5)) # Expected: 105
+
+# More complex expression in lambda
+complex_lambda = lambda x, y, z: (x + y) * z - x / y
+print(complex_lambda(10, 5, 2)) # Expected: (10+5)*2 - 10/5 = 15*2 - 2 = 30 - 2 = 28
+
+print("Lambda tests complete.")

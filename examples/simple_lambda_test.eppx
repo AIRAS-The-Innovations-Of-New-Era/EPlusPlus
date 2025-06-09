@@ -1,0 +1,14 @@
+# Simple Lambda Test
+
+# Simple lambda assigned to a variable
+add = lambda x, y: x + y
+print(add(5, 3))
+
+# Lambda used immediately  
+print((lambda a, b: a * b)(4, 7))
+
+# Lambda with no parameters
+get_msg = lambda: "Hello from lambda!"
+print(get_msg())
+
+print("Simple lambda tests complete.")

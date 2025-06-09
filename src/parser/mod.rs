@@ -59,9 +59,58 @@ fn build_recursive_ast_from_binary_expr_rule(
 // Renamed from build_ast_from_expression_final
 fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
     match pair.as_rule() {
-        Rule::expression | Rule::factor => { 
-            let inner_pair = pair.into_inner().next().unwrap();
-            build_ast_from_expression(inner_pair) // Recursive call to the renamed function
+        Rule::expression => {
+            // expression = { logical_or } (or similar highest precedence rule)
+            // It always has one inner pair representing the start of the expression hierarchy.
+            let inner_expr_pair = pair.into_inner().next().ok_or_else(|| "Expression rule is empty".to_string())?;
+            build_ast_from_expression(inner_expr_pair)
+        }        Rule::factor => {
+            let mut inner_pairs = pair.into_inner();
+            let atom_pair = inner_pairs.next().ok_or_else(|| "Factor rule is empty, expected atom".to_string())?;
+
+            // The first part of a factor must be an atom.
+            // The atom_pair itself will have a rule like Rule::atom.
+            let mut current_expr = build_ast_from_expression(atom_pair)?;
+
+            // Process potential call suffixes: call_suffix*
+            let remaining_pairs: Vec<_> = inner_pairs.collect();            for call_suffix_pair in remaining_pairs {
+                let mut args = Vec::new();
+                // call_suffix_pair.into_inner() gives what's inside the parentheses.
+                for inner_pair in call_suffix_pair.into_inner() {
+                    if inner_pair.as_rule() == Rule::argument_list {
+                        // argument_list = { expression ~ ("," ~ expression)* }
+                        // So, its inner pairs are the expressions for the arguments.
+                        for arg_expr_pair in inner_pair.into_inner() {
+                            args.push(build_ast_from_expression(arg_expr_pair)?);
+                        }
+                    } else if matches!(inner_pair.as_rule(), Rule::logical_or | Rule::expression) {
+                        // Single argument case - the grammar might produce a direct expression instead of argument_list
+                        args.push(build_ast_from_expression(inner_pair)?);
+                    } else {
+                        // This case implies that there was something between the parentheses,
+                        // but it wasn't an argument_list or expression. This would be a grammar mismatch.
+                        return Err(format!(
+                            "Expected Rule::argument_list inside call suffix, found {:?} with content '{}'",
+                            inner_pair.as_rule(),
+                            inner_pair.as_str()
+                        ));
+                    }
+                }
+                // If call_suffix_pair.into_inner().next() is None, it means empty parentheses `()`,
+                // so args remains empty, which is correct.
+
+                current_expr = Expression::Call {
+                    callee: Box::new(current_expr),
+                    args,
+                };
+            }
+            Ok(current_expr)
+        }
+        Rule::atom => {
+            // atom = { lambda_expression | list_literal | ... | identifier | "(" ~ expression ~ ")" }
+            // The pair for 'atom' contains one of these alternatives as its single inner rule.
+            let inner_atom_content_pair = pair.into_inner().next().ok_or_else(|| "Atom rule is empty".to_string())?;
+            build_ast_from_expression(inner_atom_content_pair)
         }
         Rule::logical_or => {
             build_recursive_ast_from_binary_expr_rule(pair.into_inner(), build_ast_from_expression, &[
@@ -160,18 +209,41 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
         Rule::identifier => {
             Ok(Expression::Identifier(pair.as_str().to_string()))
         }
-        Rule::function_call => {
-            let mut inner = pair.into_inner();
-            let func_name = inner.next().unwrap().as_str().to_string();
-            let mut args = Vec::new();
-            if let Some(arg_list) = inner.next() {
-                for arg_pair in arg_list.into_inner() {
-                    args.push(build_ast_from_expression(arg_pair)?);
+        // Rule::function_call is removed. It's handled by Rule::factor now.
+        Rule::lambda_expression => {
+            let mut inner_pairs = pair.into_inner();
+            let mut params = Vec::new();
+
+            // Peek at the first inner pair to see if it's a parameter_list
+            // Grammar: lambda_expression = { "lambda" ~ parameter_list? ~ ":" ~ expression }
+            // inner_pairs will contain [parameter_list (if present), expression]
+            
+            let first_inner_pair = inner_pairs.peek().ok_or_else(|| "Lambda expression is empty".to_string())?;
+
+            if first_inner_pair.as_rule() == Rule::parameter_list {
+                let param_list_pair = inner_pairs.next().unwrap(); // Consume parameter_list
+                for param_ident_pair in param_list_pair.into_inner() {
+                    // parameter_list = { identifier ~ ("," ~ identifier)* }
+                    // Each inner pair of parameter_list should be an identifier
+                    if param_ident_pair.as_rule() == Rule::identifier {
+                        params.push(param_ident_pair.as_str().to_string());
+                    } else {
+                        return Err(format!("Expected identifier in lambda parameter list, got {:?}", param_ident_pair.as_rule()));
+                    }
                 }
             }
-            Ok(Expression::FunctionCall {
-                name: func_name,
-                args,
+            // Else, no parameter_list, params remains empty.            // The next (or first, if no params) pair must be the expression body
+            let body_expr_pair = inner_pairs.next().ok_or_else(|| "Lambda expression missing body".to_string())?;
+            // Since expression is a silent rule (_{ logical_or }), the actual rule will be logical_or
+            // We can accept either expression or logical_or as valid body rules
+            if body_expr_pair.as_rule() != Rule::expression && body_expr_pair.as_rule() != Rule::logical_or {
+                 return Err(format!("Expected expression for lambda body, got {:?} with content '{}'", body_expr_pair.as_rule(), body_expr_pair.as_str()));
+            }
+
+            let body = build_ast_from_expression(body_expr_pair)?;
+            Ok(Expression::Lambda {
+                params,
+                body: Box::new(body),
             })
         }
         Rule::list_literal => {
