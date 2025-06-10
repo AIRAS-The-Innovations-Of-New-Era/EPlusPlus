@@ -23,12 +23,11 @@ pub enum Statement {
     While {
         condition: Box<Expression>,
         body: Vec<AstNode>,
-    },
-    For {
-        var: String,
+    },    For {
+        vars: Vec<String>,  // Changed from single var to multiple vars
         iterable: Box<Expression>,
         body: Vec<AstNode>,
-    },    FunctionDef {
+    },FunctionDef {
         name: String,
         params: Vec<String>,
         body: Vec<AstNode>,

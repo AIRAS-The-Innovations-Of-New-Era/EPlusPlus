@@ -558,13 +558,14 @@ fn _generate_cpp_code_with_vars(
                 while_code.push_str(&emit_block(body, declared_vars, symbol_table, function_table, type_map)?);
                 while_code.push_str("    }\n");
                 cpp_out.push_str(&while_code);
-            }            AstNode::Statement(Statement::For { var, iterable, body }) => {
+            }            AstNode::Statement(Statement::For { vars, iterable, body }) => {
                 let emit_block = |stmts: &Vec<AstNode>, declared_vars: &mut HashSet<String>, symbol_table: &mut SymbolTable, function_table: &mut FunctionTable, type_map: &mut TypeMap| -> Result<String, String> {
                     let mut block_symbol_table = symbol_table.fork();
                     block_symbol_table.enter_scope();
-                    // Add loop variable to scope if not already (it's declared by the for loop construct)
-                    // This depends on how E++ scoping for loop vars works. Assuming it's part of the inner scope.
-                    block_symbol_table.add_variable(var, "auto"); // Type might be inferred from iterable
+                    // Add loop variables to scope (they're declared by the for loop construct)
+                    for var in vars {
+                        block_symbol_table.add_variable(var, "auto"); // Type might be inferred from iterable
+                    }
 
                     let mut block = String::new();
                     for stmt in stmts {
@@ -580,18 +581,20 @@ fn _generate_cpp_code_with_vars(
                 };
                 let iterable_cpp = emit_expression_cpp(iterable, symbol_table, function_table, type_map)?;
                 let mut for_code = String::new();
-                // Ensure loop variable is declared if it's the first time.
-                // C++ for-range declares the variable in its scope.
-                // We need to ensure `var` is known to the symbol_table for the body.
-                // The `emit_block` above handles adding `var` to its new scope.
-
-                // For C++ range-based for, the variable is declared in the loop.
-                // We don't need to pre-declare `var` outside if it's a fresh variable for the loop.
-                // If `var` shadows an outer variable, C++ handles that naturally.
-                for_code.push_str(&format!("    for (auto {} : {}) {{\n", var, iterable_cpp));
-                // No need for: for_code.push_str(&format!("        {} = {}_val;\n", var, var));
-                // The `var` in `auto var : iterable_cpp` is the loop variable.
-                for_code.push_str(&emit_block(body, declared_vars, symbol_table, function_table, type_map)?); // Pass original symbol_table, emit_block creates sub-scope
+                
+                if vars.len() == 1 {
+                    // Simple case: single variable
+                    for_code.push_str(&format!("    for (auto {} : {}) {{\n", vars[0], iterable_cpp));
+                } else {
+                    // Tuple unpacking case: multiple variables
+                    for_code.push_str(&format!("    for (auto __eppx_tuple : {}) {{\n", iterable_cpp));
+                    // Unpack the tuple into individual variables
+                    for (i, var) in vars.iter().enumerate() {
+                        for_code.push_str(&format!("        auto {} = std::get<{}>(__eppx_tuple);\n", var, i));
+                    }
+                }
+                
+                for_code.push_str(&emit_block(body, declared_vars, symbol_table, function_table, type_map)?);
                 for_code.push_str("    }\n");
                 cpp_out.push_str(&for_code);
             }
@@ -1102,14 +1105,14 @@ fn generate_decorator_wrappers(decorators: &[Decorator]) -> Result<String, Strin
                 }
             }            Decorator::WithArgs(name, args) => {
                 wrapper_code.push_str(&format!("// @{}(...) decorator with {} arguments\n", name, args.len()));
-                
-                // Generate argument info for debugging
+                  // Generate argument info for debugging
+                #[allow(unused_variables)]
                 for (i, arg) in args.iter().enumerate() {
                     match arg {
-                        Argument::Positional(expr) => {
+                        Argument::Positional(_expr) => {
                             wrapper_code.push_str(&format!("// Arg {}: positional\n", i));
                         }
-                        Argument::Keyword(name, expr) => {
+                        Argument::Keyword(name, _expr) => {
                             wrapper_code.push_str(&format!("// Arg {}: {}=<value>\n", i, name));
                         }
                     }

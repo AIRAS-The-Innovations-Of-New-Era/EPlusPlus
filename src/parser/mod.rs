@@ -10,6 +10,40 @@ use crate::ast::{AstNode, Expression, Statement, BinOp, UnaryOp, AssignmentOpera
 #[grammar = "parser/grammar.pest"]
 pub struct EppParser;
 
+// Helper function to process escape sequences in string literals
+fn process_escape_sequences(input: &str) -> Result<String, String> {
+    let mut result = String::new();
+    let mut chars = input.chars().peekable();
+    
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            if let Some(&next_ch) = chars.peek() {
+                chars.next(); // consume the next character
+                match next_ch {
+                    'n' => result.push('\n'),
+                    't' => result.push('\t'),
+                    'r' => result.push('\r'),
+                    'b' => result.push('\u{0008}'), // backspace
+                    'f' => result.push('\u{000C}'), // form feed
+                    'v' => result.push('\u{000B}'), // vertical tab
+                    '0' => result.push('\0'),
+                    '\\' => result.push('\\'),
+                    '"' => result.push('"'),
+                    '\'' => result.push('\''),
+                    'a' => result.push('\u{0007}'), // bell
+                    _ => return Err(format!("Unknown escape sequence: \\{}", next_ch)),
+                }
+            } else {
+                return Err("Incomplete escape sequence".to_string());
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+    
+    Ok(result)
+}
+
 // Renamed from parse_bin_op_recursive
 fn build_recursive_ast_from_binary_expr_rule(
     mut pairs: Pairs<Rule>, // Make it mutable
@@ -229,18 +263,10 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
                 return Err("Invalid string literal".to_string());
             };
             
-            let processed_content = content
-                .replace("\\\\", "\\")
-                .replace("\\n", "\n")
-                .replace("\\t", "\t");
+            // Process escape sequences
+            let processed_content = process_escape_sequences(content)?;
             
-            let final_content = if quote_char == '"' {
-                processed_content.replace("\\\"", "\"")
-            } else {
-                processed_content.replace("\\'", "'")
-            };
-            
-            Ok(Expression::StringLiteral(final_content))
+            Ok(Expression::StringLiteral(processed_content))
         }Rule::integer_literal => {
             let val = pair.as_str().parse::<i64>().map_err(|e| format!("Invalid integer: {}", e))?;
             Ok(Expression::IntegerLiteral(val))
@@ -290,16 +316,13 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
                 params,
                 body: Box::new(body),
             })
-        }
-        Rule::list_literal => {
+        }        Rule::list_literal => {
             // Parse list literal: [expr1, expr2, ...]
             let mut elements = Vec::new();
-            let mut inner = pair.into_inner();
-            while let Some(expr_pair) = inner.next() {
-                // Each expr_pair is an expression or a comma
-                if expr_pair.as_rule() == Rule::expression {
-                    elements.push(build_ast_from_expression(expr_pair)?);
-                }
+            for expr_pair in pair.into_inner() {
+                // Since expression is a silent rule, we get the actual expression rule
+                // Skip any potential comma tokens and process all expressions
+                elements.push(build_ast_from_expression(expr_pair)?);
             }
             Ok(Expression::ListLiteral(elements))
         }
@@ -345,6 +368,28 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
         // Catch-all for rules that should have been handled by `expression` or `factor`'s recursion,
         // or are actual terminals not listed above.
         _ => Err(format!("Unhandled expression rule: {:?}\nContent: '{}'", pair.as_rule(), pair.as_str())),    }
+}
+
+// Function to parse for loop targets (single variable or tuple unpacking)
+fn parse_for_target(pair: Pair<Rule>) -> Result<Vec<String>, String> {
+    match pair.as_rule() {
+        Rule::for_target => {
+            let inner = pair.into_inner().next().unwrap();
+            parse_for_target(inner) // Recurse into the actual target
+        },
+        Rule::identifier => {
+            // Single variable
+            Ok(vec![pair.as_str().to_string()])
+        },
+        Rule::for_tuple_unpacking => {
+            // Multiple variables (tuple unpacking)
+            let vars: Vec<String> = pair.into_inner()
+                .map(|p| p.as_str().to_string())
+                .collect();
+            Ok(vars)
+        },
+        _ => Err(format!("Unexpected for target rule: {:?}", pair.as_rule()))
+    }
 }
 
 // Function to parse arguments (positional and keyword)
@@ -500,10 +545,10 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                 condition: Box::new(condition_expr),
                 body,
             }))
-        }
-        Rule::for_statement => {
-            let mut inner_rules = specific_statement_pair.into_inner(); // identifier, expression, block
-            let var_name = inner_rules.next().unwrap().as_str().to_string();
+        }        Rule::for_statement => {
+            let mut inner_rules = specific_statement_pair.into_inner(); // for_target, expression, block
+            let target_pair = inner_rules.next().unwrap();
+            let vars = parse_for_target(target_pair)?;
             let iterable_expr = build_ast_from_expression(inner_rules.next().unwrap())?;
             let block_pair = inner_rules.next().unwrap();
             if block_pair.as_rule() != Rule::block { return Err("For statement missing block".to_string()); }
@@ -511,11 +556,11 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                             .filter(|p| p.as_rule() == Rule::statement)
                             .map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
             Ok(AstNode::Statement(Statement::For {
-                var: var_name,
+                vars,
                 iterable: Box::new(iterable_expr),
                 body,
             }))
-        }        Rule::function_definition => {
+        }Rule::function_definition => {
             // specific_statement_pair is Rule::function_definition
             let mut func_def_inner = specific_statement_pair.into_inner(); // decorator*, def, identifier, parameter_list?, block
             

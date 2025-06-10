@@ -198,32 +198,9 @@ std::string eppx_input(const std::string& prompt = "") {
 template<typename T> std::unordered_set<T> eppx_internal_make_frozenset(const std::vector<T>& initial_elements) { return std::unordered_set<T>(initial_elements.begin(), initial_elements.end()); }
 
 int main() {
-    eppx_print(std::string("Testing built-in functions..."));
-    eppx_print(std::string("abs(-5):"), std::abs(-(5LL)));
-    eppx_print(std::string("max(1, 2, 3):"), eppx_max(1LL, 2LL, 3LL));
-    eppx_print(std::string("min(1, 2, 3):"), eppx_min(1LL, 2LL, 3LL));
-    eppx_print(std::string("pow(2, 3):"), std::pow(2LL, 3LL));
-    eppx_print(std::string("round(3.7):"), std::round(3.7));
-    eppx_print(std::string("int(3.14):"), static_cast<long long>(3.14));
-    eppx_print(std::string("float(5):"), static_cast<double>(5LL));
-    eppx_print(std::string("str(42):"), std::to_string(42LL));
-    eppx_print(std::string("bool(1):"), static_cast<bool>(1LL));
-    eppx_print(std::string("bool(0):"), static_cast<bool>(0LL));
-    std::string text = std::string("Hello");
-    eppx_print(std::string("len(text):"), text.size());
-    eppx_print(std::string("chr(65):"), std::string(1, static_cast<char>(65LL)));
-    eppx_print(std::string("ord('A'):"), static_cast<int>(std::string("A")[0]));
-    eppx_print(std::string("hex(255):"), eppx_hex(255LL));
-    eppx_print(std::string("bin(10):"), eppx_bin(10LL));
-    eppx_print(std::string("oct(8):"), eppx_oct(8LL));
-    auto numbers = std::vector{1LL, 2LL, 3LL, 4LL, 5LL};
-    eppx_print(std::string("sum(numbers):"), eppx_sum(numbers));
-    eppx_print(std::string("all([1, 2, 3]):"), eppx_all(std::vector{1LL, 2LL, 3LL}));
-    eppx_print(std::string("any([0, 0, 1]):"), eppx_any(std::vector{0LL, 0LL, 1LL}));
-    eppx_print(std::string("reversed([1, 2, 3]):"), eppx_reversed(std::vector{1LL, 2LL, 3LL}));
-    eppx_print(std::string("type(42):"), eppx_type(42LL));
-    eppx_print(std::string("type('hello'):"), eppx_type(std::string("hello")));
-    auto name = eppx_input(std::string("Enter your name: "));
-    eppx_print(std::string("Hello, ") + name + std::string("!"));
+    auto names = std::vector{std::string("Alice"), std::string("Bob")};
+    for (auto name : names) {
+            eppx_print(name);
+    }
     return 0;
 }

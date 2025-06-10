@@ -1,0 +1,4 @@
+// Simple test for tuple unpacking
+for i, name in enumerate(["Alice", "Bob"]) {
+    print(i, name)
+}

@@ -1,5 +1,5 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
-COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
+COMMENT = _{ ("//" ~ (!NEWLINE ~ ANY)*) | ("#" ~ (!NEWLINE ~ ANY)*) }
 
 program = { SOI ~ ( (statement | function_definition) ~ (WHITESPACE* ~ COMMENT*) )* ~ EOI }
 
@@ -17,7 +17,11 @@ else_clause = { "else" ~ block }
 
 while_statement = { "while" ~ expression ~ block }
 
-for_statement = { "for" ~ identifier ~ "in" ~ expression ~ block }
+for_statement = { "for" ~ for_target ~ "in" ~ expression ~ block }
+
+// For loop targets - can be single identifier or tuple unpacking
+for_target = { identifier | for_tuple_unpacking }
+for_tuple_unpacking = { identifier ~ ("," ~ identifier)+ }
 
 block = { "{" ~ statement* ~ "}" }
 
@@ -93,8 +97,9 @@ float_literal = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
 integer_literal = @{ ASCII_DIGIT+ }
 string_literal = @{ "\"" ~ (double_quoted_char*) ~ "\"" | "'" ~ (single_quoted_char*) ~ "'" }
 none_literal = @{ "None" } // Added for None
-double_quoted_char = { !("\"" | "\\") ~ ANY }
-single_quoted_char = { !("'" | "\\") ~ ANY }
+double_quoted_char = { escape_sequence | !("\"" | "\\") ~ ANY }
+single_quoted_char = { escape_sequence | !("'" | "\\") ~ ANY }
+escape_sequence = { "\\" ~ ("n" | "t" | "r" | "b" | "f" | "v" | "0" | "\\" | "\"" | "'" | "a") }
 identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 NEWLINE = _{ "\r"? ~ "\n" }
 

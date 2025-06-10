@@ -1,0 +1,19 @@
+// Test tuple unpacking in for loops with enumerate
+names = ["Alice", "Bob", "Charlie"]
+
+print("Testing enumerate with tuple unpacking:")
+for i, name in enumerate(names) {
+    print("Index:", i, "Name:", name)
+}
+
+print("\nTesting simple for loop:")
+for name in names {
+    print("Name:", name)
+}
+
+// Test with numbers
+numbers = [10, 20, 30]
+print("\nTesting enumerate with numbers:")
+for idx, num in enumerate(numbers) {
+    print("Position", idx, "has number", num)
+}
