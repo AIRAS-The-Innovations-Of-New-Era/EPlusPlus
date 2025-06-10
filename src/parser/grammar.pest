@@ -51,12 +51,15 @@ shift = { add_sub ~ (shift_op ~ add_sub)* }
 add_sub = { mul_div_mod ~ (add_op ~ mul_div_mod)* }
 add_op = @{ "+" | "-" }
 
-mul_div_mod = { unary_bitwise_not_power ~ (mul_op ~ unary_bitwise_not_power)* } // Changed from power to unary_bitwise_not_power
+mul_div_mod = { unary_plus_minus ~ (mul_op ~ unary_plus_minus)* } // Changed to include unary +/-
 mul_op = @{ "*" | "//" | "/" | "%" }
+
+unary_plus_minus_op = @{ "+" | "-" }
+unary_plus_minus = { unary_plus_minus_op ~ unary_bitwise_not_power | unary_bitwise_not_power }
 
 unary_bitwise_not_op = @{ "~" }
 // Power and unary bitwise NOT have similar precedence, handled by structure.
-// Unary + and - are typically handled by factor if needed, but Python's model is slightly different.
+// Unary + and - are now handled above with higher precedence.
 // For now, ~ is grouped with power. 'not' is higher.
 unary_bitwise_not_power = { unary_bitwise_not_op ~ power | power }
 
@@ -88,9 +91,10 @@ keyword_argument = { identifier ~ "=" ~ expression }
 
 float_literal = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
 integer_literal = @{ ASCII_DIGIT+ }
-string_literal = @{ "\"" ~ (char* ) ~ "\"" }
+string_literal = @{ "\"" ~ (double_quoted_char*) ~ "\"" | "'" ~ (single_quoted_char*) ~ "'" }
 none_literal = @{ "None" } // Added for None
-char = { !("\"" | "\\") ~ ANY }
+double_quoted_char = { !("\"" | "\\") ~ ANY }
+single_quoted_char = { !("'" | "\\") ~ ANY }
 identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 NEWLINE = _{ "\r"? ~ "\n" }
 

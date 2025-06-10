@@ -1,0 +1,42 @@
+# Test built-in functions
+print("Testing built-in functions...")
+
+# Mathematical functions
+print("abs(-5):", abs(-5))
+print("max(1, 2, 3):", max(1, 2, 3))
+print("min(1, 2, 3):", min(1, 2, 3))
+print("pow(2, 3):", pow(2, 3))
+print("round(3.7):", round(3.7))
+
+# Type conversions
+print("int(3.14):", int(3.14))
+print("float(5):", float(5))
+print("str(42):", str(42))
+print("bool(1):", bool(1))
+print("bool(0):", bool(0))
+
+# String functions
+text = "Hello"
+print("len(text):", len(text))
+print("chr(65):", chr(65))
+print("ord('A'):", ord('A'))
+
+# Number representations
+print("hex(255):", hex(255))
+print("bin(10):", bin(10))
+print("oct(8):", oct(8))
+
+# Collection functions
+numbers = [1, 2, 3, 4, 5]
+print("sum(numbers):", sum(numbers))
+print("all([1, 2, 3]):", all([1, 2, 3]))
+print("any([0, 0, 1]):", any([0, 0, 1]))
+print("reversed([1, 2, 3]):", reversed([1, 2, 3]))
+
+# Type checking
+print("type(42):", type(42))
+print("type('hello'):", type('hello'))
+
+# I/O
+name = input("Enter your name: ")
+print("Hello, " + name + "!")

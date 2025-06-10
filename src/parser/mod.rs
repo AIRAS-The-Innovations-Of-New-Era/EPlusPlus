@@ -182,14 +182,28 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
             build_recursive_ast_from_binary_expr_rule(pair.into_inner(), build_ast_from_expression, &[
                 (Rule::add_op, vec![("+", BinOp::Add), ("-", BinOp::Sub)])
             ], None)
-        }
-        Rule::mul_div_mod => {
+        }        Rule::mul_div_mod => {
             build_recursive_ast_from_binary_expr_rule(pair.into_inner(), build_ast_from_expression, &[
                 (Rule::mul_op, vec![
                     ("*", BinOp::Mul), ("/", BinOp::Div), 
                     ("//", BinOp::FloorDiv), ("%", BinOp::Mod)
                 ])
             ], None)
+        }
+        Rule::unary_plus_minus => {
+            let mut inner = pair.into_inner();
+            let first_child = inner.next().unwrap();
+            if first_child.as_rule() == Rule::unary_plus_minus_op {
+                let op_str = first_child.as_str();
+                let operand = build_ast_from_expression(inner.next().unwrap())?;
+                match op_str {
+                    "+" => Ok(operand), // Unary + is a no-op in most contexts
+                    "-" => Ok(Expression::UnaryOperation { op: UnaryOp::Negate, operand: Box::new(operand) }),
+                    _ => Err(format!("Unknown unary operator: {}", op_str))
+                }
+            } else {
+                build_ast_from_expression(first_child)
+            }
         }
         Rule::unary_bitwise_not_power => {
             let mut inner = pair.into_inner();
@@ -205,16 +219,29 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
             build_recursive_ast_from_binary_expr_rule(pair.into_inner(), build_ast_from_expression, &[
                 (Rule::pow_op, vec![("**", BinOp::Pow)])
             ], None)
-        }
-        Rule::string_literal => {
+        }        Rule::string_literal => {
             let full_str = pair.as_str();
-            let content = full_str[1..full_str.len()-1]
+            let (quote_char, content) = if full_str.starts_with('"') {
+                ('"', &full_str[1..full_str.len()-1])
+            } else if full_str.starts_with('\'') {
+                ('\'', &full_str[1..full_str.len()-1])
+            } else {
+                return Err("Invalid string literal".to_string());
+            };
+            
+            let processed_content = content
                 .replace("\\\\", "\\")
-                .replace("\\\"", "\"")
                 .replace("\\n", "\n")
                 .replace("\\t", "\t");
-            Ok(Expression::StringLiteral(content))
-        }        Rule::integer_literal => {
+            
+            let final_content = if quote_char == '"' {
+                processed_content.replace("\\\"", "\"")
+            } else {
+                processed_content.replace("\\'", "'")
+            };
+            
+            Ok(Expression::StringLiteral(final_content))
+        }Rule::integer_literal => {
             let val = pair.as_str().parse::<i64>().map_err(|e| format!("Invalid integer: {}", e))?;
             Ok(Expression::IntegerLiteral(val))
         }        Rule::float_literal => {

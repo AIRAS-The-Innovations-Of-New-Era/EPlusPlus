@@ -178,8 +178,8 @@ This document tracks the implementation progress of Python syntax and features i
 - [x] `def` keyword
 - [x] `return` statement
 - [x] Arguments, parameters
-- [WIP] `lambda`
-- [ ] Decorators
+- [x] `lambda`
+- [x] Decorators
 
 **4. Classes and Objects (Object-Oriented Programming):**
 

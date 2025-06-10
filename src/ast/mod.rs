@@ -81,7 +81,8 @@ pub enum AssignmentOperator {
 pub enum UnaryOp {
     Not,    // Logical NOT
     BitNot, // Bitwise NOT (~)
-    // Add UnaryPlus, UnaryMinus if needed explicitly, though often handled by parser context
+    Negate, // Unary minus (-)
+    // UnaryPlus is typically a no-op, so we don't need a variant for it
 }
 
 #[allow(dead_code)]

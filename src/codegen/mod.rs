@@ -128,8 +128,7 @@ fn _generate_cpp_code_with_vars(
     function_table: &mut FunctionTable, // Made mutable
     type_map: &mut TypeMap,
 ) -> Result<String, String> {
-    let mut cpp_out = String::new();
-    if is_toplevel {
+    let mut cpp_out = String::new();    if is_toplevel {
         cpp_out.push_str("#include <iostream>\n");
         cpp_out.push_str("#include <string>\n");
         cpp_out.push_str("#include <vector>\n");
@@ -139,24 +138,84 @@ fn _generate_cpp_code_with_vars(
         cpp_out.push_str("#include <tuple>   // For std::tuple\n");
         cpp_out.push_str("#include <map>     // For std::map\n");
         cpp_out.push_str("#include <set>     // For std::set\n");
-        cpp_out.push_str("#include <unordered_set> // For std::unordered_set\n\n");
-
-        // Basic print functions
+        cpp_out.push_str("#include <unordered_set> // For std::unordered_set\n");        cpp_out.push_str("#include <sstream> // For stringstream\n");
+        cpp_out.push_str("#include <bitset>  // For bitset\n");
+        cpp_out.push_str("#include <functional> // For std::hash\n\n");        // Basic print functions - single argument versions
         cpp_out.push_str("void eppx_print(const std::string& s) { std::cout << s << std::endl; }\n");
         cpp_out.push_str("void eppx_print(long long x) { std::cout << x << std::endl; }\n");
         cpp_out.push_str("void eppx_print(double x) { std::cout << x << std::endl; }\n");
         cpp_out.push_str("void eppx_print(bool b) { std::cout << (b ? \"true\" : \"false\") << std::endl; }\n");
         cpp_out.push_str("void eppx_print(const std::complex<long long>& c) { std::cout << \"(\" << c.real() << (c.imag() >= 0 ? \"+\" : \"\") << c.imag() << \"j)\" << std::endl; }\n");
-        cpp_out.push_str("void eppx_print(const std::complex<double>& c) { std::cout << \"(\" << c.real() << (c.imag() >= 0 ? \"+\" : \"\") << c.imag() << \"j)\" << std::endl; }\n");
-        cpp_out.push_str("void eppx_print(std::nullptr_t) { std::cout << \"None\" << std::endl; }\n");
+        cpp_out.push_str("void eppx_print(const std::complex<double>& c) { std::cout << \"(\" << c.real() << (c.imag() >= 0 ? \"+\" : \"\") << c.imag() << \"j)\" << std::endl; }\n");        cpp_out.push_str("void eppx_print(std::nullptr_t) { std::cout << \"None\" << std::endl; }\n");
+          // Print functions with comprehensive type coverage to avoid ambiguity
+        cpp_out.push_str("// Basic type printing functions\n");
+        cpp_out.push_str("void eppx_print_single(bool b) { std::cout << (b ? \"true\" : \"false\"); }\n");
+        cpp_out.push_str("void eppx_print_single(char c) { std::cout << c; }\n");
+        cpp_out.push_str("void eppx_print_single(signed char x) { std::cout << static_cast<int>(x); }\n");
+        cpp_out.push_str("void eppx_print_single(unsigned char x) { std::cout << static_cast<unsigned int>(x); }\n");
+        cpp_out.push_str("void eppx_print_single(short x) { std::cout << x; }\n");
+        cpp_out.push_str("void eppx_print_single(unsigned short x) { std::cout << x; }\n");
+        cpp_out.push_str("void eppx_print_single(int x) { std::cout << x; }\n");
+        cpp_out.push_str("void eppx_print_single(unsigned int x) { std::cout << x; }\n");
+        cpp_out.push_str("void eppx_print_single(long x) { std::cout << x; }\n");
+        cpp_out.push_str("void eppx_print_single(unsigned long x) { std::cout << x; }\n");
+        cpp_out.push_str("void eppx_print_single(long long x) { std::cout << x; }\n");
+        cpp_out.push_str("void eppx_print_single(unsigned long long x) { std::cout << x; }\n");
+        cpp_out.push_str("void eppx_print_single(float x) { std::cout << x; }\n");
+        cpp_out.push_str("void eppx_print_single(double x) { std::cout << x; }\n");
+        cpp_out.push_str("void eppx_print_single(long double x) { std::cout << x; }\n");
+        cpp_out.push_str("void eppx_print_single(const std::string& s) { std::cout << s; }\n");
+        cpp_out.push_str("void eppx_print_single(const char* s) { std::cout << s; }\n");
+        cpp_out.push_str("void eppx_print_single(std::nullptr_t) { std::cout << \"None\"; }\n");
+        
+        // Container printing functions
+        cpp_out.push_str("template<typename T> void eppx_print_single(const std::vector<T>& vec) {\n");
+        cpp_out.push_str("    std::cout << \"[\";\n");
+        cpp_out.push_str("    for (size_t i = 0; i < vec.size(); ++i) {\n");
+        cpp_out.push_str("        if (i > 0) std::cout << \", \";\n");
+        cpp_out.push_str("        std::cout << vec[i];\n");
+        cpp_out.push_str("    }\n");
+        cpp_out.push_str("    std::cout << \"]\";\n");
+        cpp_out.push_str("}\n");
+        
+        cpp_out.push_str("template<typename K, typename V> void eppx_print_single(const std::map<K, V>& m) {\n");
+        cpp_out.push_str("    std::cout << \"{\";\n");
+        cpp_out.push_str("    bool first = true;\n");
+        cpp_out.push_str("    for (const auto& pair : m) {\n");
+        cpp_out.push_str("        if (!first) std::cout << \", \";\n");
+        cpp_out.push_str("        std::cout << pair.first << \": \" << pair.second;\n");
+        cpp_out.push_str("        first = false;\n");
+        cpp_out.push_str("    }\n");
+        cpp_out.push_str("    std::cout << \"}\";\n");
+        cpp_out.push_str("}\n");
+        
+        cpp_out.push_str("template<typename T> void eppx_print_single(const std::set<T>& s) {\n");
+        cpp_out.push_str("    std::cout << \"{\";\n");
+        cpp_out.push_str("    bool first = true;\n");
+        cpp_out.push_str("    for (const auto& item : s) {\n");
+        cpp_out.push_str("        if (!first) std::cout << \", \";\n");
+        cpp_out.push_str("        std::cout << item;\n");
+        cpp_out.push_str("        first = false;\n");
+        cpp_out.push_str("    }\n");
+        cpp_out.push_str("    std::cout << \"}\";\n");
+        cpp_out.push_str("}\n");
+        
+        // Multi-argument variadic print function
+        cpp_out.push_str("template<typename T, typename... Args> void eppx_print(T&& first, Args&&... args) {\n");
+        cpp_out.push_str("    eppx_print_single(first);\n");
+        cpp_out.push_str("    if constexpr (sizeof...(args) > 0) {\n");
+        cpp_out.push_str("        std::cout << \" \";\n");
+        cpp_out.push_str("        eppx_print(args...);\n");
+        cpp_out.push_str("    } else {\n");
+        cpp_out.push_str("        std::cout << std::endl;\n");
+        cpp_out.push_str("    }\n");
+        cpp_out.push_str("}\n\n");
         // Print functions for data structures (placeholders)
         cpp_out.push_str("template<typename T> void eppx_print(const std::vector<T>& vec) { std::cout << \"list object (size: \" << vec.size() << \")\" << std::endl; }\n");
         cpp_out.push_str("template<typename K, typename V> void eppx_print(const std::map<K, V>& m) { std::cout << \"dict object (size: \" << m.size() << \")\" << std::endl; }\n");
         cpp_out.push_str("template<typename T> void eppx_print(const std::set<T>& s) { std::cout << \"set object (size: \" << s.size() << \")\" << std::endl; }\n");
         cpp_out.push_str("template<typename T> void eppx_print(const std::unordered_set<T>& s) { std::cout << \"frozenset object (size: \" << s.size() << \")\" << std::endl; }\n");
-        cpp_out.push_str("template <typename... Args> void eppx_print(const std::tuple<Args...>& t) { std::cout << \"tuple object (size: \" << sizeof...(Args) << \")\" << std::endl; }\n\n");
-
-        // Simple range helper for for loops
+        cpp_out.push_str("template <typename... Args> void eppx_print(const std::tuple<Args...>& t) { std::cout << \"tuple object (size: \" << sizeof...(Args) << \")\" << std::endl; }\n\n");        // Simple range helper for for loops
         cpp_out.push_str("std::vector<long long> eppx_range(long long n) {\n");
         cpp_out.push_str("    std::vector<long long> result;\n");
         cpp_out.push_str("    for (long long i = 0; i < n; ++i) {\n");
@@ -164,6 +223,125 @@ fn _generate_cpp_code_with_vars(
         cpp_out.push_str("    }\n");
         cpp_out.push_str("    return result;\n");
         cpp_out.push_str("}\n\n");
+
+        // Built-in functions - Arithmetic and Math
+        cpp_out.push_str("template<typename T> auto eppx_abs(T x) { return x < 0 ? -x : x; }\n");
+        cpp_out.push_str("template<typename T> auto eppx_pow(T base, T exp) { return static_cast<T>(std::pow(base, exp)); }\n");
+        cpp_out.push_str("template<typename T> auto eppx_round(T x) { return static_cast<long long>(std::round(x)); }\n");
+        cpp_out.push_str("template<typename T> std::string eppx_hex(T x) { std::stringstream ss; ss << \"0x\" << std::hex << x; return ss.str(); }\n");
+        cpp_out.push_str("template<typename T> std::string eppx_bin(T x) { return \"0b\" + std::bitset<64>(x).to_string().substr(std::bitset<64>(x).to_string().find('1')); }\n");
+        cpp_out.push_str("template<typename T> std::string eppx_oct(T x) { std::stringstream ss; ss << \"0o\" << std::oct << x; return ss.str(); }\n");
+        cpp_out.push_str("template<typename T> auto eppx_chr(T x) { return std::string(1, static_cast<char>(x)); }\n");
+        cpp_out.push_str("auto eppx_ord(const std::string& s) { return s.empty() ? 0LL : static_cast<long long>(s[0]); }\n\n");
+
+        // Built-in functions - Type conversion
+        cpp_out.push_str("template<typename T> auto eppx_int(T x) { return static_cast<long long>(x); }\n");
+        cpp_out.push_str("auto eppx_int(const std::string& s) { return std::stoll(s); }\n");
+        cpp_out.push_str("template<typename T> auto eppx_float(T x) { return static_cast<double>(x); }\n");
+        cpp_out.push_str("auto eppx_float(const std::string& s) { return std::stod(s); }\n");
+        cpp_out.push_str("template<typename T> auto eppx_bool(T x) { return static_cast<bool>(x); }\n");
+        cpp_out.push_str("template<typename T> auto eppx_str(T x) { std::stringstream ss; ss << x; return ss.str(); }\n");
+        cpp_out.push_str("auto eppx_str(const std::string& s) { return s; }\n");
+        cpp_out.push_str("auto eppx_str(std::nullptr_t) { return std::string(\"None\"); }\n\n");
+
+        // Built-in functions - Container operations
+        cpp_out.push_str("template<typename T> auto eppx_len(const std::vector<T>& v) { return static_cast<long long>(v.size()); }\n");
+        cpp_out.push_str("template<typename T> auto eppx_len(const std::set<T>& s) { return static_cast<long long>(s.size()); }\n");
+        cpp_out.push_str("template<typename K, typename V> auto eppx_len(const std::map<K, V>& m) { return static_cast<long long>(m.size()); }\n");
+        cpp_out.push_str("auto eppx_len(const std::string& s) { return static_cast<long long>(s.length()); }\n");
+        cpp_out.push_str("template<typename... Args> auto eppx_len(const std::tuple<Args...>& t) { return static_cast<long long>(sizeof...(Args)); }\n\n");
+
+        // Built-in functions - Min/Max
+        cpp_out.push_str("template<typename T> auto eppx_min(const std::vector<T>& v) { return v.empty() ? T{} : *std::min_element(v.begin(), v.end()); }\n");
+        cpp_out.push_str("template<typename T> auto eppx_max(const std::vector<T>& v) { return v.empty() ? T{} : *std::max_element(v.begin(), v.end()); }\n");
+        cpp_out.push_str("template<typename T, typename... Args> auto eppx_min(T first, Args... args) { return std::min({first, static_cast<T>(args)...}); }\n");
+        cpp_out.push_str("template<typename T, typename... Args> auto eppx_max(T first, Args... args) { return std::max({first, static_cast<T>(args)...}); }\n\n");
+
+        // Built-in functions - Sum
+        cpp_out.push_str("template<typename T> auto eppx_sum(const std::vector<T>& v) { T result = T{}; for (const auto& x : v) result += x; return result; }\n");
+        cpp_out.push_str("template<typename T> auto eppx_sum(const std::vector<T>& v, T start) { T result = start; for (const auto& x : v) result += x; return result; }\n\n");
+
+        // Built-in functions - All/Any
+        cpp_out.push_str("template<typename T> bool eppx_all(const std::vector<T>& v) { for (const auto& x : v) if (!x) return false; return true; }\n");
+        cpp_out.push_str("template<typename T> bool eppx_any(const std::vector<T>& v) { for (const auto& x : v) if (x) return true; return false; }\n\n");
+
+        // Built-in functions - Sorted, Reversed
+        cpp_out.push_str("template<typename T> auto eppx_sorted(const std::vector<T>& v) { auto result = v; std::sort(result.begin(), result.end()); return result; }\n");
+        cpp_out.push_str("template<typename T> auto eppx_reversed(const std::vector<T>& v) { auto result = v; std::reverse(result.begin(), result.end()); return result; }\n");
+        cpp_out.push_str("auto eppx_reversed(const std::string& s) { auto result = s; std::reverse(result.begin(), result.end()); return result; }\n\n");
+
+        // Built-in functions - Enumerate
+        cpp_out.push_str("template<typename T> auto eppx_enumerate(const std::vector<T>& v) {\n");
+        cpp_out.push_str("    std::vector<std::tuple<long long, T>> result;\n");
+        cpp_out.push_str("    for (size_t i = 0; i < v.size(); ++i) {\n");
+        cpp_out.push_str("        result.emplace_back(static_cast<long long>(i), v[i]);\n");
+        cpp_out.push_str("    }\n");
+        cpp_out.push_str("    return result;\n");
+        cpp_out.push_str("}\n\n");
+
+        // Built-in functions - Zip
+        cpp_out.push_str("template<typename T1, typename T2> auto eppx_zip(const std::vector<T1>& v1, const std::vector<T2>& v2) {\n");
+        cpp_out.push_str("    std::vector<std::tuple<T1, T2>> result;\n");
+        cpp_out.push_str("    size_t min_size = std::min(v1.size(), v2.size());\n");
+        cpp_out.push_str("    for (size_t i = 0; i < min_size; ++i) {\n");
+        cpp_out.push_str("        result.emplace_back(v1[i], v2[i]);\n");
+        cpp_out.push_str("    }\n");
+        cpp_out.push_str("    return result;\n");
+        cpp_out.push_str("}\n\n");
+
+        // Built-in functions - Map, Filter
+        cpp_out.push_str("template<typename F, typename T> auto eppx_map(F func, const std::vector<T>& v) {\n");
+        cpp_out.push_str("    std::vector<decltype(func(v[0]))> result;\n");
+        cpp_out.push_str("    for (const auto& x : v) {\n");
+        cpp_out.push_str("        result.push_back(func(x));\n");
+        cpp_out.push_str("    }\n");
+        cpp_out.push_str("    return result;\n");
+        cpp_out.push_str("}\n\n");
+
+        cpp_out.push_str("template<typename F, typename T> auto eppx_filter(F func, const std::vector<T>& v) {\n");
+        cpp_out.push_str("    std::vector<T> result;\n");
+        cpp_out.push_str("    for (const auto& x : v) {\n");
+        cpp_out.push_str("        if (func(x)) {\n");
+        cpp_out.push_str("            result.push_back(x);\n");
+        cpp_out.push_str("        }\n");
+        cpp_out.push_str("    }\n");
+        cpp_out.push_str("    return result;\n");
+        cpp_out.push_str("}\n\n");
+
+        // Built-in functions - Collection constructors
+        cpp_out.push_str("template<typename T> auto eppx_list(const std::vector<T>& v) { return v; }\n");
+        cpp_out.push_str("auto eppx_list() { return std::vector<long long>{}; }\n");
+        cpp_out.push_str("template<typename... Args> auto eppx_tuple(Args... args) { return std::make_tuple(args...); }\n");
+        cpp_out.push_str("template<typename T> auto eppx_set(const std::vector<T>& v) { return std::set<T>(v.begin(), v.end()); }\n");
+        cpp_out.push_str("auto eppx_set() { return std::set<long long>{}; }\n");
+        cpp_out.push_str("template<typename K, typename V> auto eppx_dict(const std::vector<std::tuple<K, V>>& pairs) {\n");
+        cpp_out.push_str("    std::map<K, V> result;\n");
+        cpp_out.push_str("    for (const auto& p : pairs) {\n");
+        cpp_out.push_str("        result[std::get<0>(p)] = std::get<1>(p);\n");
+        cpp_out.push_str("    }\n");
+        cpp_out.push_str("    return result;\n");
+        cpp_out.push_str("}\n");
+        cpp_out.push_str("auto eppx_dict() { return std::map<std::string, long long>{}; }\n\n");
+
+        // Built-in functions - Type checking (simplified)
+        cpp_out.push_str("template<typename T> bool eppx_isinstance(T, const std::string& type_name) {\n");
+        cpp_out.push_str("    // Simplified type checking - would need proper runtime type info\n");
+        cpp_out.push_str("    return false; // Placeholder\n");
+        cpp_out.push_str("}\n\n");
+
+        cpp_out.push_str("template<typename T> std::string eppx_type(T) {\n");
+        cpp_out.push_str("    // Simplified type info - would need proper runtime type info\n");
+        cpp_out.push_str("    return \"<type>\"; // Placeholder\n");
+        cpp_out.push_str("}\n\n");
+
+        // Built-in functions - Input
+        cpp_out.push_str("std::string eppx_input(const std::string& prompt = \"\") {\n");
+        cpp_out.push_str("    if (!prompt.empty()) std::cout << prompt;\n");
+        cpp_out.push_str("    std::string result;\n");
+        cpp_out.push_str("    std::getline(std::cin, result);\n");
+        cpp_out.push_str("    return result;\n");
+        cpp_out.push_str("}\n\n");
+
         // Helper for creating frozenset
         cpp_out.push_str("template<typename T> std::unordered_set<T> eppx_internal_make_frozenset(const std::vector<T>& initial_elements) { return std::unordered_set<T>(initial_elements.begin(), initial_elements.end()); }\n\n");
     }    // First pass: emit all function definitions and class definitions at the top level
@@ -478,12 +656,12 @@ pub fn emit_expression_cpp(
         Expression::FloatLiteral(f) => Ok(format!("{}", f)), // Float literals
         Expression::NoneLiteral => Ok("nullptr".to_string()),
         Expression::BooleanLiteral(b) => Ok(format!("{}", b)),
-        Expression::Identifier(name) => Ok(name.clone()),
-        Expression::UnaryOperation { op, operand } => {
+        Expression::Identifier(name) => Ok(name.clone()),        Expression::UnaryOperation { op, operand } => {
             let operand_cpp = emit_expression_cpp(operand, symbol_table, function_table, type_map)?;
             match op {
                 UnaryOp::Not => Ok(format!("!({})", operand_cpp)), // Added parentheses for safety
                 UnaryOp::BitNot => Ok(format!("~({})", operand_cpp)), // Implement BitNot
+                UnaryOp::Negate => Ok(format!("-({})", operand_cpp)), // Unary minus
             }
         }
         Expression::ListLiteral(elements) => {
@@ -504,18 +682,168 @@ pub fn emit_expression_cpp(
             let mut args_cpp = Vec::new();
             for arg in args {
                 args_cpp.push(emit_expression_cpp(arg, symbol_table, function_table, type_map)?);
-            }
-
-            // Handle special built-in functions first
+            }            // Handle special built-in functions first
             if let Expression::Identifier(name) = &**callee {
-                if name == "range" && args.len() == 1 {
-                    // args_cpp will have one element here
-                    return Ok(format!("eppx_range({})", args_cpp[0]));
+                match name.as_str() {
+                    // Print function
+                    "print" => {
+                        return Ok(format!("eppx_print({})", args_cpp.join(", ")));
+                    }
+                    
+                    // Range function
+                    "range" if args.len() == 1 => {
+                        return Ok(format!("eppx_range({})", args_cpp[0]));
+                    }
+                    
+                    // Mathematical functions
+                    "abs" if args.len() == 1 => {
+                        return Ok(format!("std::abs({})", args_cpp[0]));
+                    }
+                    "pow" if args.len() == 2 => {
+                        return Ok(format!("std::pow({}, {})", args_cpp[0], args_cpp[1]));
+                    }                    "max" if args.len() >= 2 => {
+                        return Ok(format!("eppx_max({})", args_cpp.join(", ")));
+                    }
+                    "min" if args.len() >= 2 => {
+                        return Ok(format!("eppx_min({})", args_cpp.join(", ")));
+                    }
+                    "round" if args.len() == 1 => {
+                        return Ok(format!("std::round({})", args_cpp[0]));
+                    }
+                    
+                    // Type conversions
+                    "int" if args.len() == 1 => {
+                        return Ok(format!("static_cast<long long>({})", args_cpp[0]));
+                    }
+                    "float" if args.len() == 1 => {
+                        return Ok(format!("static_cast<double>({})", args_cpp[0]));
+                    }
+                    "bool" if args.len() == 1 => {
+                        return Ok(format!("static_cast<bool>({})", args_cpp[0]));
+                    }
+                    "str" if args.len() == 1 => {
+                        return Ok(format!("std::to_string({})", args_cpp[0]));
+                    }
+                    
+                    // String functions
+                    "len" if args.len() == 1 => {
+                        return Ok(format!("{}.size()", args_cpp[0]));
+                    }
+                    "chr" if args.len() == 1 => {
+                        return Ok(format!("std::string(1, static_cast<char>({}))", args_cpp[0]));
+                    }
+                    "ord" if args.len() == 1 => {
+                        return Ok(format!("static_cast<int>({}[0])", args_cpp[0]));
+                    }
+                    
+                    // Utility functions
+                    "hex" if args.len() == 1 => {
+                        return Ok(format!("eppx_hex({})", args_cpp[0]));
+                    }
+                    "bin" if args.len() == 1 => {
+                        return Ok(format!("eppx_bin({})", args_cpp[0]));
+                    }
+                    "oct" if args.len() == 1 => {
+                        return Ok(format!("eppx_oct({})", args_cpp[0]));
+                    }
+                    
+                    // Collection functions
+                    "sum" if args.len() == 1 => {
+                        return Ok(format!("eppx_sum({})", args_cpp[0]));
+                    }
+                    "all" if args.len() == 1 => {
+                        return Ok(format!("eppx_all({})", args_cpp[0]));
+                    }
+                    "any" if args.len() == 1 => {
+                        return Ok(format!("eppx_any({})", args_cpp[0]));
+                    }
+                    "reversed" if args.len() == 1 => {
+                        return Ok(format!("eppx_reversed({})", args_cpp[0]));
+                    }
+                    
+                    // Collection constructors
+                    "list" if args.len() == 0 => {
+                        return Ok("std::vector<eppx_variant>{}".to_string());
+                    }
+                    "list" if args.len() == 1 => {
+                        return Ok(format!("eppx_to_list({})", args_cpp[0]));
+                    }
+                    "tuple" if args.len() == 0 => {
+                        return Ok("std::tuple<>{}".to_string());
+                    }
+                    "dict" if args.len() == 0 => {
+                        return Ok("std::map<eppx_variant, eppx_variant>{}".to_string());
+                    }
+                    "set" if args.len() == 0 => {
+                        return Ok("std::set<eppx_variant>{}".to_string());
+                    }
+                    "set" if args.len() == 1 => {
+                        return Ok(format!("eppx_to_set({})", args_cpp[0]));
+                    }
+                    
+                    // I/O functions
+                    "input" if args.len() == 0 => {
+                        return Ok("eppx_input()".to_string());
+                    }
+                    "input" if args.len() == 1 => {
+                        return Ok(format!("eppx_input({})", args_cpp[0]));
+                    }
+                    
+                    // Type checking functions
+                    "type" if args.len() == 1 => {
+                        return Ok(format!("eppx_type({})", args_cpp[0]));
+                    }
+                    "isinstance" if args.len() == 2 => {
+                        return Ok(format!("eppx_isinstance({}, {})", args_cpp[0], args_cpp[1]));
+                    }
+                    "callable" if args.len() == 1 => {
+                        return Ok(format!("eppx_callable({})", args_cpp[0]));
+                    }
+                    
+                    // Object introspection
+                    "id" if args.len() == 1 => {
+                        return Ok(format!("reinterpret_cast<uintptr_t>(&{})", args_cpp[0]));
+                    }
+                    "hasattr" if args.len() == 2 => {
+                        return Ok(format!("eppx_hasattr({}, {})", args_cpp[0], args_cpp[1]));
+                    }
+                    "getattr" if args.len() == 2 => {
+                        return Ok(format!("eppx_getattr({}, {})", args_cpp[0], args_cpp[1]));
+                    }
+                    "getattr" if args.len() == 3 => {
+                        return Ok(format!("eppx_getattr({}, {}, {})", args_cpp[0], args_cpp[1], args_cpp[2]));
+                    }
+                    "setattr" if args.len() == 3 => {
+                        return Ok(format!("eppx_setattr({}, {}, {})", args_cpp[0], args_cpp[1], args_cpp[2]));
+                    }
+                    "delattr" if args.len() == 2 => {
+                        return Ok(format!("eppx_delattr({}, {})", args_cpp[0], args_cpp[1]));
+                    }
+                    
+                    // Hash function
+                    "hash" if args.len() == 1 => {
+                        return Ok(format!("std::hash<eppx_variant>{{}}({})", args_cpp[0]));
+                    }
+                    
+                    // Advanced functions that need custom implementation
+                    "enumerate" if args.len() == 1 => {
+                        return Ok(format!("eppx_enumerate({})", args_cpp[0]));
+                    }
+                    "zip" if args.len() >= 2 => {
+                        return Ok(format!("eppx_zip({{{}}})", args_cpp.join(", ")));
+                    }
+                    "map" if args.len() >= 2 => {
+                        return Ok(format!("eppx_map({}, {{{}}})", args_cpp[0], args_cpp[1..].join(", ")));
+                    }
+                    "filter" if args.len() == 2 => {
+                        return Ok(format!("eppx_filter({}, {})", args_cpp[0], args_cpp[1]));
+                    }
+                    "sorted" if args.len() == 1 => {
+                        return Ok(format!("eppx_sorted({})", args_cpp[0]));
+                    }
+                    
+                    _ => {} // Fall through to generic function call
                 }
-                // Add other special functions like print (if it were an expression), len, etc.
-                // if name == "len" && args.len() == 1 {
-                //     return Ok(format!("{}.size()", args_cpp[0])); // Example for a vector/string
-                // }
             }
             
             // Generic function call
