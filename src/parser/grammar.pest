@@ -82,7 +82,9 @@ atom = {
 factor = { atom ~ call_suffix* }
 call_suffix = { "(" ~ argument_list? ~ ")" }
 lambda_expression = { "lambda" ~ parameter_list? ~ ":" ~ expression }
-argument_list = { expression ~ ("," ~ expression)* }
+argument_list = { argument ~ ("," ~ argument)* }
+argument = { keyword_argument | expression }
+keyword_argument = { identifier ~ "=" ~ expression }
 
 float_literal = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
 integer_literal = @{ ASCII_DIGIT+ }
@@ -92,8 +94,12 @@ char = { !("\"" | "\\") ~ ANY }
 identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 NEWLINE = _{ "\r"? ~ "\n" }
 
-function_definition = { "def" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ block }
+function_definition = { decorator* ~ "def" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ block }
 parameter_list = { identifier ~ ("," ~ identifier)* }
+
+decorator = { "@" ~ decorator_name ~ decorator_args? }
+decorator_name = { identifier }
+decorator_args = { "(" ~ argument_list? ~ ")" }
 
 return_statement = { "return" ~ expression? }
 

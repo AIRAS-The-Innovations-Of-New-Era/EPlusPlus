@@ -34,6 +34,6 @@ template<typename T> std::unordered_set<T> eppx_internal_make_frozenset(const st
 
 int main() {
     auto f = ([=]() { return std::string("hello"); });
-    eppx_print(f);
+    eppx_print(f());
     return 0;
 }

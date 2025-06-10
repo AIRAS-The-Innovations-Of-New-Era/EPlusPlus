@@ -28,13 +28,12 @@ pub enum Statement {
         var: String,
         iterable: Box<Expression>,
         body: Vec<AstNode>,
-    },
-    FunctionDef {
+    },    FunctionDef {
         name: String,
         params: Vec<String>,
         body: Vec<AstNode>,
-    },
-    Return(Option<Box<Expression>>),
+        decorators: Vec<Decorator>, // Added decorators support
+    },    Return(Option<Box<Expression>>),
     ExpressionStatement(Box<Expression>), // Added for standalone expressions
     Break,                              // Added for break statements
     Continue,                           // Added for continue statements
@@ -44,6 +43,18 @@ pub enum Statement {
         name: String,
         body: Vec<AstNode>, // Simplified: can contain assignments (members) or defs (methods)
     },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Decorator {
+    Simple(String),                           // @decorator_name
+    WithArgs(String, Vec<Argument>),          // @decorator_name(arg1, name=arg2, ...)
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Argument {
+    Positional(Expression),                   // func(expr)
+    Keyword(String, Expression),              // func(name=expr)
 }
 
 #[allow(dead_code)]

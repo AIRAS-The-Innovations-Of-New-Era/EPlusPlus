@@ -4,7 +4,7 @@ use pest::iterators::{Pair, Pairs}; // Added Pairs
 use std::fs;
 use std::path::Path;
 
-use crate::ast::{AstNode, Expression, Statement, BinOp, UnaryOp, AssignmentOperator}; // Added UnaryOp
+use crate::ast::{AstNode, Expression, Statement, BinOp, UnaryOp, AssignmentOperator, Decorator, Argument}; // Added Decorator and Argument
 
 #[derive(Parser)]
 #[grammar = "parser/grammar.pest"]
@@ -70,18 +70,36 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
 
             // The first part of a factor must be an atom.
             // The atom_pair itself will have a rule like Rule::atom.
-            let mut current_expr = build_ast_from_expression(atom_pair)?;
-
-            // Process potential call suffixes: call_suffix*
+            let mut current_expr = build_ast_from_expression(atom_pair)?;            // Process potential call suffixes: call_suffix*
             let remaining_pairs: Vec<_> = inner_pairs.collect();            for call_suffix_pair in remaining_pairs {
                 let mut args = Vec::new();
                 // call_suffix_pair.into_inner() gives what's inside the parentheses.
                 for inner_pair in call_suffix_pair.into_inner() {
                     if inner_pair.as_rule() == Rule::argument_list {
-                        // argument_list = { expression ~ ("," ~ expression)* }
-                        // So, its inner pairs are the expressions for the arguments.
-                        for arg_expr_pair in inner_pair.into_inner() {
-                            args.push(build_ast_from_expression(arg_expr_pair)?);
+                        // argument_list = { argument ~ ("," ~ argument)* }
+                        // argument = { keyword_argument | expression }
+                        for arg_pair in inner_pair.into_inner() {
+                            match arg_pair.as_rule() {
+                                Rule::argument => {
+                                    // Parse the argument content
+                                    let arg_content = arg_pair.into_inner().next().ok_or("Empty argument")?;
+                                    if arg_content.as_rule() == Rule::keyword_argument {
+                                        // For function calls, we'll ignore keyword arguments for now
+                                        // and just parse the value part
+                                        let mut kw_inner = arg_content.into_inner();
+                                        let _name = kw_inner.next(); // Skip the name
+                                        let value_pair = kw_inner.next().ok_or("Keyword argument missing value")?;
+                                        args.push(build_ast_from_expression(value_pair)?);
+                                    } else {
+                                        // Regular expression argument
+                                        args.push(build_ast_from_expression(arg_content)?);
+                                    }
+                                }
+                                _ => {
+                                    // Direct expression (fallback for old grammar compatibility)
+                                    args.push(build_ast_from_expression(arg_pair)?);
+                                }
+                            }
                         }
                     } else if matches!(inner_pair.as_rule(), Rule::logical_or | Rule::expression) {
                         // Single argument case - the grammar might produce a direct expression instead of argument_list
@@ -299,7 +317,56 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
         }
         // Catch-all for rules that should have been handled by `expression` or `factor`'s recursion,
         // or are actual terminals not listed above.
-        _ => Err(format!("Unhandled expression rule: {:?}\nContent: '{}'", pair.as_rule(), pair.as_str())),
+        _ => Err(format!("Unhandled expression rule: {:?}\nContent: '{}'", pair.as_rule(), pair.as_str())),    }
+}
+
+// Function to parse arguments (positional and keyword)
+fn parse_argument(pair: Pair<Rule>) -> Result<Argument, String> {
+    match pair.as_rule() {
+        Rule::keyword_argument => {
+            let mut inner = pair.into_inner();
+            let name_pair = inner.next().ok_or("Keyword argument missing name")?;
+            let value_pair = inner.next().ok_or("Keyword argument missing value")?;
+            let name = name_pair.as_str().to_string();
+            let value = build_ast_from_expression(value_pair)?;
+            Ok(Argument::Keyword(name, value))
+        }
+        _ => {
+            // Treat as positional argument (expression)
+            let expr = build_ast_from_expression(pair)?;
+            Ok(Argument::Positional(expr))
+        }
+    }
+}
+
+// Function to parse decorator
+fn parse_decorator(pair: Pair<Rule>) -> Result<Decorator, String> {
+    let mut inner = pair.into_inner(); // decorator_name, decorator_args?
+    
+    let name_pair = inner.next().ok_or("Decorator missing name")?;
+    let decorator_name = name_pair.as_str().to_string();
+    
+    if let Some(args_pair) = inner.next() {
+        // Decorator has arguments
+        let mut args = Vec::new();
+        for arg_pair in args_pair.into_inner() {
+            if arg_pair.as_rule() == Rule::argument_list {
+                for inner_arg_pair in arg_pair.into_inner() {
+                    if inner_arg_pair.as_rule() == Rule::argument {
+                        // Parse the argument content
+                        let arg_content = inner_arg_pair.into_inner().next().ok_or("Empty argument")?;
+                        args.push(parse_argument(arg_content)?);
+                    } else {
+                        // Direct expression (fallback for old grammar compatibility)
+                        args.push(parse_argument(inner_arg_pair)?);
+                    }
+                }
+            }
+        }
+        Ok(Decorator::WithArgs(decorator_name, args))
+    } else {
+        // Simple decorator without arguments
+        Ok(Decorator::Simple(decorator_name))
     }
 }
 
@@ -421,10 +488,22 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                 iterable: Box::new(iterable_expr),
                 body,
             }))
-        }
-        Rule::function_definition => {
+        }        Rule::function_definition => {
             // specific_statement_pair is Rule::function_definition
-            let mut func_def_inner = specific_statement_pair.into_inner(); // identifier, parameter_list?, block
+            let mut func_def_inner = specific_statement_pair.into_inner(); // decorator*, def, identifier, parameter_list?, block
+            
+            // Parse decorators first
+            let mut decorators = Vec::new();
+            while let Some(peeked) = func_def_inner.peek() {
+                if peeked.as_rule() == Rule::decorator {
+                    let decorator_pair = func_def_inner.next().unwrap();
+                    decorators.push(parse_decorator(decorator_pair)?);
+                } else {
+                    break;
+                }
+            }
+            
+            // Skip "def" keyword - it's implicit in the grammar
             let name = func_def_inner.next().unwrap().as_str().to_string();
             
             let mut params = Vec::new();
@@ -449,6 +528,7 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                 name,
                 params,
                 body,
+                decorators,
             }))
         }
         Rule::return_statement => {

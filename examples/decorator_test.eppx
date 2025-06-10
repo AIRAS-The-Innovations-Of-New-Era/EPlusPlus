@@ -1,0 +1,32 @@
+# Decorator examples to implement in E++
+
+# Basic decorator
+@timer
+def slow_function() {
+    print("This is a slow function")
+}
+
+# Decorator with arguments
+@retry(times=3)
+def unreliable_function() {
+    print("This might fail")
+}
+
+# Multiple decorators
+@staticmethod
+@cache
+def cached_static_method() {
+    print("Cached static method")
+}
+
+# Decorator on variable/expression
+@property
+def my_property() {
+    return 42
+}
+
+# Call decorated functions
+slow_function()
+unreliable_function()
+cached_static_method()
+print(my_property)

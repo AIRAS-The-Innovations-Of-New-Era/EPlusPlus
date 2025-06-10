@@ -32,43 +32,47 @@ std::vector<long long> eppx_range(long long n) {
 
 template<typename T> std::unordered_set<T> eppx_internal_make_frozenset(const std::vector<T>& initial_elements) { return std::unordered_set<T>(initial_elements.begin(), initial_elements.end()); }
 
-auto add(long long a, long long b) {
+template<typename T0, typename T1>
+auto add(T0 a, T1 b) {
     return a + b;
 }
 
-auto greet(std::string name) {
+template<typename T0>
+auto greet(T0 name) {
     eppx_print(std::string("Hello, ") + name);
-    return 0;
+    return 0; // Default return if none explicit
 }
 
 int main() {
-    long long x = 5LL;    long long y = 10LL;    auto z = x + y * 2LL;    eppx_print(z);
+    long long x = 5LL;
+    long long y = 10LL;
+    auto z = x + y * 2LL;
+    eppx_print(z);
     if (z > 20LL) {
-    eppx_print(std::string("z is large"));
+        eppx_print(std::string("z is large"));
     } else {
-    eppx_print(std::string("z is small"));
+        eppx_print(std::string("z is small"));
     }
-    long long count = 0LL;    while (count < 3LL) {
-    eppx_print(count);
-    count = count + 1LL;
+    long long count = 0LL;
+    while (count < 3LL) {
+        eppx_print(count);
+        count = count + 1LL;
     }
-    long long i;
-    for (auto i_val : eppx_range(3LL)) {
-        i = i_val;
-    eppx_print(i);
+    for (auto i : eppx_range(3LL)) {
+            eppx_print(i);
     }
-    auto result = add(7LL, 8LL);    eppx_print(result);
+    auto result = add(7LL, 8LL);
+    eppx_print(result);
     greet(std::string("E++"));
-    for (auto i_val : eppx_range(5LL)) {
-        i = i_val;
-    if (i == 2LL) {
-    ; // pass statement
-    } else if (i == 3LL) {
-    continue;
-    } else if (i == 4LL) {
-    break;
-    }
-    eppx_print(i);
+    for (auto i : eppx_range(5LL)) {
+            if (i == 2LL) {
+                ; // pass statement
+            } else if (i == 3LL) {
+                continue;
+            } else if (i == 4LL) {
+                break;
+            }
+            eppx_print(i);
     }
     return 0;
 }

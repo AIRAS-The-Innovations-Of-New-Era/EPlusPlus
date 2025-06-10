@@ -33,19 +33,5 @@ std::vector<long long> eppx_range(long long n) {
 template<typename T> std::unordered_set<T> eppx_internal_make_frozenset(const std::vector<T>& initial_elements) { return std::unordered_set<T>(initial_elements.begin(), initial_elements.end()); }
 
 int main() {
-    auto lst = std::vector<long long>{};
-    eppx_print(lst);
-    auto mytuple = std::make_tuple(1LL, 2LL, 3LL);
-    eppx_print(mytuple);
-    auto d = std::map<std::string, long long>{{std::string("a"), 1LL}, {std::string("b"), 2LL}};
-    eppx_print(d);
-    auto s = std::set<long long>{1LL, 2LL, 3LL};
-    eppx_print(s);
-    auto fs = std::unordered_set<long long>{};
-    eppx_print(fs);
-    auto c = std::complex<double>(1LL, 2LL);
-    eppx_print(c);
-    auto n = nullptr;
-    eppx_print(n);
     return 0;
 }

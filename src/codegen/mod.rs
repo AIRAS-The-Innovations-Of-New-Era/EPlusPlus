@@ -1,5 +1,5 @@
 // Codegen module placeholder
-use crate::ast::{AstNode, Expression, Statement, BinOp, UnaryOp, AssignmentOperator};
+use crate::ast::{AstNode, Expression, Statement, BinOp, UnaryOp, AssignmentOperator, Decorator, Argument};
 use std::collections::{HashMap, HashSet};
 
 // Placeholder for SymbolTable, FunctionTable, and TypeMap
@@ -168,40 +168,53 @@ fn _generate_cpp_code_with_vars(
         cpp_out.push_str("template<typename T> std::unordered_set<T> eppx_internal_make_frozenset(const std::vector<T>& initial_elements) { return std::unordered_set<T>(initial_elements.begin(), initial_elements.end()); }\n\n");
     }    // First pass: emit all function definitions and class definitions at the top level
     // This helps with C++'s requirement for declaration before use.
-    for node in ast_nodes {
-        match node {            AstNode::Statement(Statement::FunctionDef { name, params, body }) => {
-                // params in AST are Vec<String> (just names)
-                let param_list_cpp = params
-                    .iter()
-                    .map(|p_name| format!("auto {}", p_name)) // Use auto for C++ param types for now
-                    .collect::<Vec<String>>()
-                    .join(", ");
+    for node in ast_nodes {        match node {            AstNode::Statement(Statement::FunctionDef { name, params, body, decorators }) => {
+                // Generate decorator-wrapped function
+                let decorator_wrappers = generate_decorator_wrappers(decorators)?;
+                
+                // Generate template parameters and function parameter list
+                let mut template_params_gen = Vec::new();
+                let mut call_params_gen = Vec::new();
+                let mut param_types_for_signature = Vec::new();
 
-                // Populate FunctionTable (simplified)
-                let param_types_for_sig = params.iter().map(|_| "auto".to_string()).collect();
-                // Return type needs to be inferred or specified, using "auto" as placeholder
-                let sig = FunctionSignature { param_types: param_types_for_sig, return_type: "auto".to_string() };
+                symbol_table.enter_scope(); // Scope for function parameters and body
+
+                for (i, p_name) in params.iter().enumerate() {
+                    let type_param_name = format!("T{}", i);
+                    template_params_gen.push(format!("typename {}", type_param_name));
+                    call_params_gen.push(format!("{} {}", type_param_name, p_name));
+                    param_types_for_signature.push(type_param_name.clone());
+                    // Add parameter to symbol table with its generic type
+                    symbol_table.add_variable(p_name, &type_param_name);
+                }                let template_clause = if !template_params_gen.is_empty() {
+                    format!("template<{}>\n", template_params_gen.join(", "))
+                } else {
+                    "".to_string()
+                };
+                let param_list_cpp = call_params_gen.join(", ");
+
+                // Populate FunctionTable
+                let sig = FunctionSignature { param_types: param_types_for_signature, return_type: "auto".to_string() };
                 function_table.add_function(name, sig);
 
-                // Process function body in a new scope
-                symbol_table.enter_scope();
-                for p_name in params {
-                    symbol_table.add_variable(p_name, "auto");
-                }
-
-                let mut function_body_declared_vars = HashSet::new(); // Separate declared_vars for function body
+                // Function body (symbol_table already has params in its current scope)
+                let mut function_body_declared_vars = HashSet::new();
                 let body_cpp = _generate_cpp_code_with_vars(body, false, &mut function_body_declared_vars, symbol_table, function_table, type_map)?;
-                
-                symbol_table.exit_scope();
+                  symbol_table.exit_scope(); // End of function scope
 
-                cpp_out.push_str(&format!("auto {}({}) {{\n", name, param_list_cpp));
+                // Add decorator wrapper comments/code
+                cpp_out.push_str(&decorator_wrappers);
+                cpp_out.push_str(&format!("{}auto {}({}) {{\n", template_clause, name, param_list_cpp));
                 cpp_out.push_str(&body_cpp);
-                // Only add default return if no explicit return found in body
-                let has_return = body.iter().any(|node| {
-                    matches!(node, AstNode::Statement(Statement::Return(_)))
-                });
+                let has_return = body.iter().any(|node| matches!(node, AstNode::Statement(Statement::Return(_))));
                 if !has_return {
-                    cpp_out.push_str("    return 0;\n");
+                    // Default return for void-like functions or if E++ allows implicit None return
+                    // C++ functions returning auto must have a return statement.
+                    // For simplicity, if E++ implies returning 0 or void:
+                    // This might need adjustment based on E++ function semantics.
+                    // If it's truly auto, it must deduce from a return.
+                    // Let's assume functions implicitly return 0 if no other return.
+                    cpp_out.push_str("    return 0; // Default return if none explicit\n");
                 }
                 cpp_out.push_str("}\n\n");
             }
@@ -217,8 +230,7 @@ fn _generate_cpp_code_with_vars(
                             let value_cpp = emit_expression_cpp(value, symbol_table, function_table, type_map)?;
                             let type_str = infer_cpp_type_for_static_member(value);
                             cpp_out.push_str(&format!("    static inline {} {} = {};\n", type_str, member_name, value_cpp));
-                        }
-                        AstNode::Statement(Statement::FunctionDef { name: method_name, params, body: _method_body }) => {
+                        }                        AstNode::Statement(Statement::FunctionDef { name: method_name, params, body: _method_body, decorators: _ }) => {
                             // Generate member function (method)
                             cpp_out.push_str(&emit_method_cpp(method_name, params, _method_body)?);
                         }
@@ -240,19 +252,21 @@ fn _generate_cpp_code_with_vars(
         }
         // DEBUG: Print node kind for troubleshooting
         // eprintln!("Codegen node: {:?}", node); // Removed debug print
-        match node {
-            AstNode::Statement(Statement::Print(expr)) => {
+        match node {            AstNode::Statement(Statement::Print(expr)) => {
                 let expr_code = emit_expression_cpp(expr, symbol_table, function_table, type_map)?;
                 cpp_out.push_str(&format!("    eppx_print({});\n", expr_code));
             }
             AstNode::Statement(Statement::Assignment { name, operator, value }) => {
                 let value_cpp = emit_expression_cpp(value, symbol_table, function_table, type_map)?;
-                if !declared_vars.contains(name) {
-                    // Infer type for declaration (simplified)
-                    // _emit_cpp_for_variable_declaration can be used to get a more robust type string
-                    let type_str = _emit_cpp_for_variable_declaration(name, &None, value, symbol_table, function_table, type_map, false)
-                        .map_err(|e| format!("Type deduction error: {}", e))? // Get type string part
-                        .split_whitespace().next().unwrap_or("auto").to_string(); // Extract type
+                if !declared_vars.contains(name) {                    // Infer type for declaration (simplified)
+                    let type_str = match &**value {
+                        Expression::IntegerLiteral(_) => "long long".to_string(),
+                        Expression::FloatLiteral(_) => "double".to_string(),
+                        Expression::StringLiteral(_) => "std::string".to_string(),
+                        Expression::BooleanLiteral(_) => "bool".to_string(),
+                        Expression::Lambda { .. } => "auto".to_string(),
+                        _ => "auto".to_string(),
+                    };
 
                     match operator {
                         AssignmentOperator::Assign => {
@@ -268,26 +282,46 @@ fn _generate_cpp_code_with_vars(
                     declared_vars.insert(name.clone());
                     symbol_table.add_variable(name, &type_str); // Add to symbol table
                 } else {
-                    let op_str = match operator {
-                        AssignmentOperator::Assign => "=",
-                        AssignmentOperator::AddAssign => "+=",
-                        AssignmentOperator::SubAssign => "-=",
-                        AssignmentOperator::MulAssign => "*=",
-                        AssignmentOperator::DivAssign => "/=",
-                        AssignmentOperator::ModAssign => "%=",
-                        // PowAssign, FloorDivAssign etc. need special handling if not direct C++ ops
-                        AssignmentOperator::PowAssign => return Err("PowAssign codegen not fully implemented here".to_string()), // Placeholder
-                        AssignmentOperator::FloorDivAssign => return Err("FloorDivAssign codegen not fully implemented here".to_string()), // Placeholder
-                        _ => unimplemented!("Assignment operator {:?}", operator),
-                    };
-                    // Handle special cases like PowAssign, FloorDivAssign separately if they don't map directly
-                    // For now, assuming direct mapping for simpler ones.
-                    if operator == &AssignmentOperator::PowAssign {
-                        cpp_out.push_str(&format!("    {} = static_cast<long long>(std::pow({}, {}));\n", name, name, value_cpp));
-                    } else if operator == &AssignmentOperator::FloorDivAssign { // Assuming integer division
-                        cpp_out.push_str(&format!("    {} /= {}; // Ensure integer division if that's the E++ semantic\n", name, value_cpp));
-                    } else {
-                         cpp_out.push_str(&format!("    {} {} {};\n", name, op_str, value_cpp));
+                    // Variable already declared, apply assignment operator
+                    match operator {
+                        AssignmentOperator::Assign => {
+                            cpp_out.push_str(&format!("    {} = {};\n", name, value_cpp));
+                        }
+                        AssignmentOperator::AddAssign => {
+                            cpp_out.push_str(&format!("    {} += {};\n", name, value_cpp));
+                        }
+                        AssignmentOperator::SubAssign => {
+                            cpp_out.push_str(&format!("    {} -= {};\n", name, value_cpp));
+                        }
+                        AssignmentOperator::MulAssign => {
+                            cpp_out.push_str(&format!("    {} *= {};\n", name, value_cpp));
+                        }
+                        AssignmentOperator::DivAssign => {
+                            cpp_out.push_str(&format!("    {} /= {};\n", name, value_cpp));
+                        }
+                        AssignmentOperator::ModAssign => {
+                            cpp_out.push_str(&format!("    {} %= {};\n", name, value_cpp));
+                        }
+                        AssignmentOperator::PowAssign => {
+                            cpp_out.push_str(&format!("    {} = static_cast<long long>(std::pow(static_cast<double>({}), static_cast<double>({})));\n", name, name, value_cpp));
+                        }
+                        AssignmentOperator::FloorDivAssign => {
+                            cpp_out.push_str(&format!("    {} = static_cast<long long>(std::floor(static_cast<double>({}) / static_cast<double>({})));\n", name, name, value_cpp));
+                        }
+                        AssignmentOperator::BitAndAssign => {
+                            cpp_out.push_str(&format!("    {} &= {};\n", name, value_cpp));
+                        }                        AssignmentOperator::BitOrAssign => {
+                            cpp_out.push_str(&format!("    {} |= {};\n", name, value_cpp));
+                        }
+                        AssignmentOperator::BitXorAssign => {
+                            cpp_out.push_str(&format!("    {} ^= {};\n", name, value_cpp));
+                        }
+                        AssignmentOperator::LShiftAssign => {
+                            cpp_out.push_str(&format!("    {} <<= {};\n", name, value_cpp));
+                        }
+                        AssignmentOperator::RShiftAssign => {
+                            cpp_out.push_str(&format!("    {} >>= {};\n", name, value_cpp));
+                        }
                     }
                 }
             }
@@ -448,40 +482,44 @@ pub fn emit_expression_cpp(
         Expression::UnaryOperation { op, operand } => {
             let operand_cpp = emit_expression_cpp(operand, symbol_table, function_table, type_map)?;
             match op {
-                UnaryOp::Not => Ok(format!("!{}", operand_cpp)),
-                UnaryOp::BitNot => Ok(format!("~{}", operand_cpp)),
+                UnaryOp::Not => Ok(format!("!({})", operand_cpp)), // Added parentheses for safety
+                UnaryOp::BitNot => Ok(format!("~({})", operand_cpp)), // Implement BitNot
             }
         }
-        // Expression::FunctionCall removed, replaced by Expression::Call
+        Expression::ListLiteral(elements) => {
+            if elements.is_empty() {
+                // Default to std::vector<long long> for empty lists.
+                // Consider std::vector<std::any> or std::vector<std::monostate> if more general empty lists are needed.
+                Ok("std::vector<long long>{}".to_string())
+            } else {
+                let mut elements_cpp = Vec::new();
+                for el in elements {
+                    elements_cpp.push(emit_expression_cpp(el, symbol_table, function_table, type_map)?);
+                }
+                // Use C++17 Class Template Argument Deduction (CTAD)
+                Ok(format!("std::vector{{{}}}", elements_cpp.join(", ")))
+            }
+        }
         Expression::Call { callee, args } => {
-            // Attempt to handle built-ins first by checking if callee is an Identifier
-            if let Expression::Identifier(name) = &**callee {
-                if name == "len" && args.len() == 1 {
-                    let arg_cpp = emit_expression_cpp(&args[0], symbol_table, function_table, type_map)?;
-                    // TODO: Type check to ensure .size() is valid or use a custom E++ len function
-                    return Ok(format!("({}).size()", arg_cpp)); 
-                }
-                if name == "str" && args.len() == 1 {
-                    let arg_cpp = emit_expression_cpp(&args[0], symbol_table, function_table, type_map)?;
-                    return Ok(format!("std::to_string({})", arg_cpp));
-                }
-                if name == "int" && args.len() == 1 {
-                    let arg_cpp = emit_expression_cpp(&args[0], symbol_table, function_table, type_map)?;
-                    return Ok(format!("static_cast<long long>({})", arg_cpp));
-                }
-                if name == "float" && args.len() == 1 {
-                    let arg_cpp = emit_expression_cpp(&args[0], symbol_table, function_table, type_map)?;
-                    return Ok(format!("static_cast<double>({})", arg_cpp));
-                }
-                // Add other built-in function checks here if necessary
+            let mut args_cpp = Vec::new();
+            for arg in args {
+                args_cpp.push(emit_expression_cpp(arg, symbol_table, function_table, type_map)?);
             }
 
-            // General case for Expression::Call (includes user-defined functions and lambdas)
+            // Handle special built-in functions first
+            if let Expression::Identifier(name) = &**callee {
+                if name == "range" && args.len() == 1 {
+                    // args_cpp will have one element here
+                    return Ok(format!("eppx_range({})", args_cpp[0]));
+                }
+                // Add other special functions like print (if it were an expression), len, etc.
+                // if name == "len" && args.len() == 1 {
+                //     return Ok(format!("{}.size()", args_cpp[0])); // Example for a vector/string
+                // }
+            }
+            
+            // Generic function call
             let callee_cpp = emit_expression_cpp(callee, symbol_table, function_table, type_map)?;
-            let args_cpp: Vec<String> = args
-                .iter()
-                .map(|arg| emit_expression_cpp(arg, symbol_table, function_table, type_map))
-                .collect::<Result<_, _>>()?;
             Ok(format!("{}({})", callee_cpp, args_cpp.join(", ")))
         }
         Expression::Lambda { params, body } => {
@@ -561,13 +599,6 @@ pub fn emit_expression_cpp(
                 }
             };
             Ok(format!("{} {} {}", l, op_str, r))
-        }
-        Expression::ListLiteral(elements) => {
-            let mut elements_cpp = Vec::new();
-            for el in elements {
-                elements_cpp.push(emit_expression_cpp(el, symbol_table, function_table, type_map)?);
-            }
-            Ok(format!("std::vector<auto>{{{}}}", elements_cpp.join(", "))) // Consider more specific type if inferable
         }
         Expression::TupleLiteral(elements) => {
             Ok(format!("std::make_tuple({})", elements.iter().map(|e| emit_expression_cpp(e, symbol_table, function_table, type_map)).collect::<Result<Vec<_>,_>>()?.join(", ")))
@@ -715,5 +746,67 @@ fn infer_cpp_type_for_static_member(expr: &Expression) -> String {
 fn emit_method_cpp(method_name: &str, params: &[String], _body: &[AstNode]) -> Result<String, String> {
     let params_cpp = params.iter().map(|p| format!("auto {}", p)).collect::<Vec<String>>().join(", ");
     Ok(format!("auto {}({});", method_name, params_cpp))
+}
+
+fn generate_decorator_wrappers(decorators: &[Decorator]) -> Result<String, String> {
+    let mut wrapper_code = String::new();
+    
+    for decorator in decorators {
+        match decorator {
+            Decorator::Simple(name) => {
+                wrapper_code.push_str(&format!("// @{} decorator\n", name));
+                match name.as_str() {
+                    "timer" => {
+                        wrapper_code.push_str("// Timer decorator: measures execution time\n");
+                    }
+                    "staticmethod" => {
+                        wrapper_code.push_str("// Static method decorator\n");
+                    }
+                    "property" => {
+                        wrapper_code.push_str("// Property decorator\n");
+                    }
+                    "cache" => {
+                        wrapper_code.push_str("// Cache decorator: memoizes function results\n");
+                    }
+                    _ => {
+                        wrapper_code.push_str(&format!("// Unknown decorator: {}\n", name));
+                    }
+                }
+            }            Decorator::WithArgs(name, args) => {
+                wrapper_code.push_str(&format!("// @{}(...) decorator with {} arguments\n", name, args.len()));
+                
+                // Generate argument info for debugging
+                for (i, arg) in args.iter().enumerate() {
+                    match arg {
+                        Argument::Positional(expr) => {
+                            wrapper_code.push_str(&format!("// Arg {}: positional\n", i));
+                        }
+                        Argument::Keyword(name, expr) => {
+                            wrapper_code.push_str(&format!("// Arg {}: {}=<value>\n", i, name));
+                        }
+                    }
+                }
+                
+                match name.as_str() {
+                    "retry" => {
+                        wrapper_code.push_str("// Retry decorator: retries function on failure\n");
+                        // Look for 'times' keyword argument
+                        for arg in args {
+                            if let Argument::Keyword(param_name, _expr) = arg {
+                                if param_name == "times" {
+                                    wrapper_code.push_str("// Found 'times' parameter for retry\n");
+                                }
+                            }
+                        }
+                    }
+                    _ => {
+                        wrapper_code.push_str(&format!("// Unknown decorator with args: {}\n", name));
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok(wrapper_code)
 }
 
