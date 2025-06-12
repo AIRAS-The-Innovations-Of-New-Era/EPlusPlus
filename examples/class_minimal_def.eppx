@@ -1,0 +1,35 @@
+// Minimal class definitions for parser testing
+
+class MyClass:
+  pass
+
+class AnotherClass:
+  member_var = 123
+  def method(self, x):
+    print("Hello from method", x)
+    return x * 2
+
+class MyDerivedClass(MyClass):
+  derived_var = 456
+  def derived_method(self):
+    print("Hello from derived method")
+
+class YetAnotherClass(AnotherClass):
+  pass
+
+// Test with no explicit base (should not pick up block as base)
+class NoBase: {
+  y = 10
+}
+
+// Test with expression as base
+// x = MyClass
+// class ExprBase(x): // This might require identifier, not general expression, for base class in many languages
+//    pass           // Current Pest grammar uses 'expression' for base, so this should parse if 'x' is valid expr.
+                  // However, for semantic correctness, it usually is an identifier.
+                  // The AST stores it as Expression, so parser should be fine.
+class ComplexBase(MyDerivedClass(AnotherClass)): //This is not standard python syntax for inheritance
+    pass                                       //Pest rule allows expression here, so parser might accept it.
+                                               //Actual semantic check for valid base class identifier will be later.
+
+print("Minimal class definition file parsed (not executed).")

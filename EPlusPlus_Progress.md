@@ -6,6 +6,7 @@ This document tracks the implementation progress of Python syntax and features i
 
 **Built-in Functions Implementation (Latest):**
 - ✅ Implemented 20+ Python built-in functions including `abs()`, `max()`, `min()`, `len()`, `chr()`, `ord()`, `hex()`, `bin()`, `oct()`, `input()`, `sum()`, `all()`, `any()`, `reversed()`, `round()`, and type conversion functions (`int()`, `float()`, `bool()`, `str()`)
+- ✅ Implemented `ascii()`, `bytearray()`, `bytes()`, `callable()`.
 - ✅ Enhanced `print()` with multi-argument support and comprehensive type overloads
 - ✅ Added `pow()` function with optional modulus parameter
 - ✅ Fixed template ambiguity issues in C++ code generation
@@ -15,24 +16,26 @@ This document tracks the implementation progress of Python syntax and features i
 - ✅ Implemented unary minus (`-`) and unary plus (`+`) operators
 - ✅ Fixed list literal parsing to properly handle expressions like `[1, 2, 3]`
 - ✅ Added comprehensive function call argument parsing with keyword argument support
+- ✅ Added parser and AST support for basic class definitions, including single inheritance.
 
 **Code Generation Improvements:**
 - ✅ Implemented variadic template system for multi-argument functions
 - ✅ Added 50+ lines of C++ helper functions for built-in operations
 - ✅ Resolved C++ compilation issues with container operations and type conversions
+- ✅ Implemented C++ code generation for basic class structures (structs with static members/methods) and single inheritance.
 
 ## Python Built-in Functions
 
 - [x] `abs()` (Implemented: absolute value for int, float, complex)
 - [x] `all()` (Implemented: returns True if all elements are truthy)
 - [x] `any()` (Implemented: returns True if any element is truthy)
-- [ ] `ascii()`
+- [x] `ascii()` (Implemented: ASCII representation of objects)
 - [x] `bin()` (Implemented: binary representation of integers)
 - [x] `bool()` (Implemented: boolean conversion for all types)
 - [ ] `breakpoint()`
-- [ ] `bytearray()`
-- [ ] `bytes()`
-- [ ] `callable()`
+- [x] `bytearray()` (Implemented: mutable sequence of bytes)
+- [x] `bytes()` (Implemented: immutable sequence of bytes)
+- [x] `callable()` (Implemented: checks if an object is callable)
 - [x] `chr()` (Implemented: character from ASCII code)
 - [ ] `classmethod()`
 - [ ] `compile()`
@@ -207,13 +210,15 @@ This document tracks the implementation progress of Python syntax and features i
 
 **4. Classes and Objects (Object-Oriented Programming):**
 
-- [ ] `class` keyword
-- [ ] `__init__`
-- [ ] `self`
-- [ ] Attributes and Methods
-- [ ] Inheritance
-- [ ] Polymorphism
-- [ ] Encapsulation
+- [x] `class` keyword (basic structure, definition, and C++ codegen for static members/methods)
+- [~] Attributes and Methods (static-like attributes and methods within class definitions only; no instance members or `self` yet)
+- [~] Inheritance (basic single inheritance syntax and C++ generation for static context; no polymorphism or complex MRO)
+- [ ] `__init__` (constructor)
+- [ ] `self` (instance context)
+- [ ] Instantiation (creating objects from classes)
+- [ ] Instance member access (e.g., `obj.attr`, `obj.method()`)
+- [ ] Polymorphism (dynamic dispatch based on object type)
+- [ ] Encapsulation (public/private concepts are not yet defined)
 
 **5. Modules and Packages:**
 

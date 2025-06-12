@@ -1,0 +1,32 @@
+// Test codegen for class inheritance
+
+class BaseClass:
+    base_var = 100
+
+    def describe_base():
+        print("This is the BaseClass. Base var is: " + str(BaseClass.base_var))
+
+class DerivedClass(BaseClass):
+    derived_var = "derived_string"
+
+    def describe_derived():
+        print("This is the DerivedClass. Derived var is: " + DerivedClass.derived_var)
+        // To access BaseClass.base_var, we'd need static member access like BaseClass.base_var
+        // print("Base var from derived: " + str(BaseClass.base_var)) // This line won't work as BaseClass.base_var not directly in C++ scope for str()
+
+    def get_base_var_indirectly():
+        // return BaseClass.base_var // This syntax for static access is not yet supported by EPPX codegen for expressions.
+                                  // C++ would allow BaseClass::base_var
+        return 0 // Placeholder
+
+// Chained inheritance
+class GrandDerivedClass(DerivedClass):
+    grand_var = 3.14
+
+    def describe_grand_derived():
+        print("This is GrandDerivedClass.")
+        // print("Derived var: " + DerivedClass.derived_var)
+        // print("Base var: " + BaseClass.base_var)
+
+
+print("Class inheritance codegen test file created.")

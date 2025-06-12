@@ -1,0 +1,8 @@
+print(ascii("hello"))
+print(ascii("Hello World!"))
+print(ascii("!@#$%^&*()_+-=[]{};':\",./<>?"))
+print(ascii("Line with\new_line and\ttab."))
+print(ascii("Test with non-ASCII: éàçöü"))
+print(ascii("Emoji: 😀")) // This will test \U escaping if correctly handled up to that point
+print(ascii('A'))
+print(ascii('\n'))

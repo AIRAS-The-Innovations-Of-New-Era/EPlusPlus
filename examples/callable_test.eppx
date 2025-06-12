@@ -1,0 +1,56 @@
+// Test callable() built-in function
+
+def my_function():
+  return 42
+
+print("callable(my_function):", callable(my_function)) // Expected: true
+
+my_lambda = lambda x: x + 1
+print("callable(my_lambda):", callable(my_lambda)) // Expected: true
+print("callable(lambda y: y):", callable(lambda y: y)) // Expected: true
+
+# Basic types
+print("callable(123):", callable(123)) // Expected: false
+print("callable(\"string\"):", callable("string")) // Expected: false
+print("callable([1, 2, 3]):", callable([1, 2, 3])) // Expected: false
+print("callable({'a': 1}):", callable({'a': 1})) // Expected: false
+b_arr = bytearray("test")
+print("callable(b_arr):", callable(b_arr)) // Expected: false
+b_obj = bytes("test")
+print("callable(b_obj):", callable(b_obj)) // Expected: false
+
+
+# Variables holding different types
+an_int = 100
+a_string = "hello eppx"
+a_list = [4, 5, 6]
+a_func_ref = my_function
+a_lambda_ref = my_lambda
+
+print("callable(an_int):", callable(an_int)) // Expected: false
+print("callable(a_string):", callable(a_string)) // Expected: false
+print("callable(a_list):", callable(a_list)) // Expected: false
+
+// For these, the current implementation will call eppx_callable_runtime.
+// Depending on how variables holding functions/lambdas are handled by the eppx_variant and runtime system,
+// these might be true or false. The eppx_callable_runtime currently defaults to false for non-primitive types.
+// More advanced type system/wrapping would be needed for these to be true via runtime check.
+print("callable(a_func_ref):", callable(a_func_ref))
+print("callable(a_lambda_ref):", callable(a_lambda_ref))
+
+// Example of a class (if/when classes are more fully supported)
+// class MyClass:
+//   def method(self):
+//     pass
+
+// class MyCallableClass:
+//   def __call__(self):
+//     return "called!"
+
+// instance = MyClass()
+// callable_instance = MyCallableClass()
+
+// print("callable(MyClass):", callable(MyClass)) // Type/class object, Python makes these callable
+// print("callable(instance):", callable(instance)) // Expected: false
+// print("callable(callable_instance):", callable(callable_instance)) // Expected: true (due to __call__)
+// print("callable(instance.method):", callable(instance.method)) // Bound method, Expected: true

@@ -36,9 +36,9 @@ impl SymbolTable {    pub fn new() -> Self {
         }
     }    pub fn add_variable(&mut self, name: &str, var_type: &str) {
         if let Some(scope) = self.scopes.last_mut() {
-            scope.insert(name.to_string(), VariableInfo { 
-                type_name: var_type.to_string(), 
-                is_const: false 
+            scope.insert(name.to_string(), VariableInfo {
+                type_name: var_type.to_string(),
+                is_const: false
             });
         }
     }
@@ -97,7 +97,7 @@ impl FunctionTable {
     }
 }
 
-// TypeMap could be used for more advanced type inference or checking, 
+// TypeMap could be used for more advanced type inference or checking,
 // mapping AST node IDs or variable names to resolved types.
 // For now, it can be simple or integrated into SymbolTable/FunctionTable if not heavily used.
 pub struct TypeMap {
@@ -167,7 +167,7 @@ fn _generate_cpp_code_with_vars(
         cpp_out.push_str("void eppx_print_single(const std::string& s) { std::cout << s; }\n");
         cpp_out.push_str("void eppx_print_single(const char* s) { std::cout << s; }\n");
         cpp_out.push_str("void eppx_print_single(std::nullptr_t) { std::cout << \"None\"; }\n");
-        
+
         // Container printing functions
         cpp_out.push_str("template<typename T> void eppx_print_single(const std::vector<T>& vec) {\n");
         cpp_out.push_str("    std::cout << \"[\";\n");
@@ -177,7 +177,7 @@ fn _generate_cpp_code_with_vars(
         cpp_out.push_str("    }\n");
         cpp_out.push_str("    std::cout << \"]\";\n");
         cpp_out.push_str("}\n");
-        
+
         cpp_out.push_str("template<typename K, typename V> void eppx_print_single(const std::map<K, V>& m) {\n");
         cpp_out.push_str("    std::cout << \"{\";\n");
         cpp_out.push_str("    bool first = true;\n");
@@ -188,7 +188,7 @@ fn _generate_cpp_code_with_vars(
         cpp_out.push_str("    }\n");
         cpp_out.push_str("    std::cout << \"}\";\n");
         cpp_out.push_str("}\n");
-        
+
         cpp_out.push_str("template<typename T> void eppx_print_single(const std::set<T>& s) {\n");
         cpp_out.push_str("    std::cout << \"{\";\n");
         cpp_out.push_str("    bool first = true;\n");
@@ -199,7 +199,7 @@ fn _generate_cpp_code_with_vars(
         cpp_out.push_str("    }\n");
         cpp_out.push_str("    std::cout << \"}\";\n");
         cpp_out.push_str("}\n");
-        
+
         // Multi-argument variadic print function
         cpp_out.push_str("template<typename T, typename... Args> void eppx_print(T&& first, Args&&... args) {\n");
         cpp_out.push_str("    eppx_print_single(first);\n");
@@ -349,7 +349,7 @@ fn _generate_cpp_code_with_vars(
     for node in ast_nodes {        match node {            AstNode::Statement(Statement::FunctionDef { name, params, body, decorators }) => {
                 // Generate decorator-wrapped function
                 let decorator_wrappers = generate_decorator_wrappers(decorators)?;
-                
+
                 // Generate template parameters and function parameter list
                 let mut template_params_gen = Vec::new();
                 let mut call_params_gen = Vec::new();
@@ -376,7 +376,7 @@ fn _generate_cpp_code_with_vars(
                 function_table.add_function(name, sig);
 
                 // Function body (symbol_table already has params in its current scope)
-                let mut function_body_declared_vars = HashSet::new();
+                let mut function_body_declared_vars = HashSet::new(); // Not strictly needed for top-level, but good for consistency
                 let body_cpp = _generate_cpp_code_with_vars(body, false, &mut function_body_declared_vars, symbol_table, function_table, type_map)?;
                   symbol_table.exit_scope(); // End of function scope
 
@@ -396,25 +396,86 @@ fn _generate_cpp_code_with_vars(
                 }
                 cpp_out.push_str("}\n\n");
             }
-            AstNode::Statement(Statement::ClassDef { name, body }) => {
-                cpp_out.push_str(&format!("struct {} {{\n", name));
-                // Process class body for static members and methods
-                // This is a simplified model: assignments become static members, defs become methods.
-                // No special handling for __init__ or self yet.
+            AstNode::Statement(Statement::ClassDef { name, base_class, body }) => {
+                cpp_out.push_str(&format!("struct {}", name));
+                if let Some(base_expr) = base_class {
+                    // Assuming base_class expression evaluates to a simple identifier string for now
+                    let base_name_cpp = emit_expression_cpp(base_expr, symbol_table, function_table, type_map)?;
+                    // This might need refinement if emit_expression_cpp wraps strings in std::string("")
+                    // For now, assume it returns the raw identifier if it's an Expression::Identifier
+                    cpp_out.push_str(&format!(" : public {}", base_name_cpp));
+                }
+                cpp_out.push_str(" {\n");
+
+                // Create a new symbol table scope for the class body.
+                // This is not strictly C++ behavior for static members but helps keep generation logic consistent.
+                symbol_table.enter_scope();
+                let mut class_body_declared_vars = HashSet::new(); // For static members if needed
+
                 for class_node in body {
                     match class_node {
-                        AstNode::Statement(Statement::Assignment { name: member_name, operator: AssignmentOperator::Assign, value }) => {
-                            // Generate static inline member
-                            let value_cpp = emit_expression_cpp(value, symbol_table, function_table, type_map)?;
-                            let type_str = infer_cpp_type_for_static_member(value);
-                            cpp_out.push_str(&format!("    static inline {} {} = {};\n", type_str, member_name, value_cpp));
-                        }                        AstNode::Statement(Statement::FunctionDef { name: method_name, params, body: _method_body, decorators: _ }) => {
-                            // Generate member function (method)
-                            cpp_out.push_str(&emit_method_cpp(method_name, params, _method_body)?);
+                        AstNode::Statement(Statement::Assignment { name: member_name, operator, value }) => {
+                            if operator == &AssignmentOperator::Assign { // Only simple assignment for static members
+                                let value_cpp = emit_expression_cpp(value, symbol_table, function_table, type_map)?;
+                                // Let C++ infer type with auto, or use infer_cpp_type_for_static_member if available
+                                cpp_out.push_str(&format!("    static inline auto {} = {};\n", member_name, value_cpp));
+                                // Optionally, add to symbol_table if static members need to be tracked for some reason
+                                // symbol_table.add_variable(member_name, "auto"); // Simplified type
+                            } else {
+                                // Compound assignments for static members are more complex, skip for now
+                                cpp_out.push_str(&format!("    // Skipped compound assignment for static member {}\n", member_name));
+                            }
                         }
-                        _ => { /* Other statements in class body might be ignored or handled later */ }
+                        AstNode::Statement(Statement::FunctionDef { name: method_name, params, body: method_body, decorators }) => {
+                            let method_decorator_wrappers = generate_decorator_wrappers(decorators)?;
+                            cpp_out.push_str(&method_decorator_wrappers);
+
+                            let mut method_params_cpp = Vec::new();
+                            // symbol_table.enter_scope(); // New scope for method parameters
+                            for p_name in params {
+                                // Ignoring 'self' for static methods for now.
+                                // If 'self' were the first param, it could be skipped here.
+                                method_params_cpp.push(format!("auto {}", p_name));
+                                // symbol_table.add_variable(p_name, "auto");
+                            }
+                            let method_param_list_cpp = method_params_cpp.join(", ");
+
+                            // Generate method body - needs its own scope if it uses symbol_table for locals
+                            let mut method_body_symbol_table = symbol_table.fork(); // Fork for method body
+                            method_body_symbol_table.enter_scope();
+                            for p_name in params { // Add params to method's symbol table
+                                method_body_symbol_table.add_variable(p_name, "auto");
+                            }
+
+                            let mut method_body_declared_vars = HashSet::new();
+                            let method_body_cpp = _generate_cpp_code_with_vars(
+                                method_body,
+                                false, // Not toplevel
+                                &mut method_body_declared_vars,
+                                &mut method_body_symbol_table, // Use forked table
+                                function_table,
+                                type_map
+                            )?;
+                            method_body_symbol_table.exit_scope();
+                            // symbol_table.exit_scope(); // Exit scope for method parameters
+
+                            cpp_out.push_str(&format!("    static auto {}({}) {{\n", method_name, method_param_list_cpp));
+                            cpp_out.push_str(&method_body_cpp);
+                            let method_has_return = method_body.iter().any(|node| matches!(node, AstNode::Statement(Statement::Return(_))));
+                            if !method_has_return {
+                                cpp_out.push_str("        return 0; // Default return for static method if none explicit\n");
+                            }
+                            cpp_out.push_str("    }\n\n");
+                        }
+                        AstNode::Statement(Statement::Pass) => {
+                             cpp_out.push_str("    // pass\n");
+                        }
+                        _ => {
+                            cpp_out.push_str(&format!("    // Non-assignment/method statement in class body: {:?}\n", class_node));
+                        }
                     }
                 }
+                symbol_table.exit_scope(); // Exit class body scope
                 cpp_out.push_str("};\n\n");
             }
             _ => {} // Other statement types are handled in the second pass (for main's body)
@@ -443,7 +504,7 @@ fn _generate_cpp_code_with_vars(
                         Expression::StringLiteral(_) => "std::string".to_string(),
                         Expression::BooleanLiteral(_) => "bool".to_string(),
                         Expression::Lambda { .. } => "auto".to_string(),
-                        _ => "auto".to_string(),
+                        _ => "auto".to_string(), // Default to auto for other types like function calls, class instances etc.
                     };
 
                     match operator {
@@ -508,8 +569,9 @@ fn _generate_cpp_code_with_vars(
                     let mut block_symbol_table = symbol_table.fork(); // Fork for new scope
                     block_symbol_table.enter_scope();
                     let mut block = String::new();
-                    for stmt in stmts {
-                        let inner = _generate_cpp_code_with_vars(&[stmt.clone()], false, declared_vars, &mut block_symbol_table, function_table, type_map)?;
+                    for stmt_node in stmts { // Renamed to avoid conflict with outer 'node'
+                        // Ensure we are passing a slice of AstNode if _generate_cpp_code_with_vars expects it
+                        let inner = _generate_cpp_code_with_vars(&[stmt_node.clone()], false, declared_vars, &mut block_symbol_table, function_table, type_map)?;
                         for line in inner.lines() {
                             block.push_str("    "); // Indent
                             block.push_str(line);
@@ -541,8 +603,8 @@ fn _generate_cpp_code_with_vars(
                     let mut block_symbol_table = symbol_table.fork();
                     block_symbol_table.enter_scope();
                     let mut block = String::new();
-                    for stmt in stmts {
-                        let inner = _generate_cpp_code_with_vars(&[stmt.clone()], false, declared_vars, &mut block_symbol_table, function_table, type_map)?;
+                    for stmt_node in stmts { // Renamed
+                        let inner = _generate_cpp_code_with_vars(&[stmt_node.clone()], false, declared_vars, &mut block_symbol_table, function_table, type_map)?;
                         for line in inner.lines() {
                             block.push_str("    "); // Indent
                             block.push_str(line);
@@ -563,13 +625,13 @@ fn _generate_cpp_code_with_vars(
                     let mut block_symbol_table = symbol_table.fork();
                     block_symbol_table.enter_scope();
                     // Add loop variables to scope (they're declared by the for loop construct)
-                    for var in vars {
+                    for var in vars { // vars is already Vec<String>
                         block_symbol_table.add_variable(var, "auto"); // Type might be inferred from iterable
                     }
 
                     let mut block = String::new();
-                    for stmt in stmts {
-                        let inner = _generate_cpp_code_with_vars(&[stmt.clone()], false, declared_vars, &mut block_symbol_table, function_table, type_map)?;
+                    for stmt_node in stmts { // Renamed
+                        let inner = _generate_cpp_code_with_vars(&[stmt_node.clone()], false, declared_vars, &mut block_symbol_table, function_table, type_map)?;
                         for line in inner.lines() {
                             block.push_str("        "); // Further indent for for-loop body
                             block.push_str(line);
@@ -581,7 +643,7 @@ fn _generate_cpp_code_with_vars(
                 };
                 let iterable_cpp = emit_expression_cpp(iterable, symbol_table, function_table, type_map)?;
                 let mut for_code = String::new();
-                
+
                 if vars.len() == 1 {
                     // Simple case: single variable
                     for_code.push_str(&format!("    for (auto {} : {}) {{\n", vars[0], iterable_cpp));
@@ -593,7 +655,7 @@ fn _generate_cpp_code_with_vars(
                         for_code.push_str(&format!("        auto {} = std::get<{}>(__eppx_tuple);\n", var, i));
                     }
                 }
-                
+
                 for_code.push_str(&emit_block(body, declared_vars, symbol_table, function_table, type_map)?);
                 for_code.push_str("    }\n");
                 cpp_out.push_str(&for_code);
@@ -692,12 +754,12 @@ pub fn emit_expression_cpp(
                     "print" => {
                         return Ok(format!("eppx_print({})", args_cpp.join(", ")));
                     }
-                    
+
                     // Range function
                     "range" if args.len() == 1 => {
                         return Ok(format!("eppx_range({})", args_cpp[0]));
                     }
-                    
+
                     // Mathematical functions
                     "abs" if args.len() == 1 => {
                         return Ok(format!("std::abs({})", args_cpp[0]));
@@ -713,7 +775,7 @@ pub fn emit_expression_cpp(
                     "round" if args.len() == 1 => {
                         return Ok(format!("std::round({})", args_cpp[0]));
                     }
-                    
+
                     // Type conversions
                     "int" if args.len() == 1 => {
                         return Ok(format!("static_cast<long long>({})", args_cpp[0]));
@@ -727,7 +789,7 @@ pub fn emit_expression_cpp(
                     "str" if args.len() == 1 => {
                         return Ok(format!("std::to_string({})", args_cpp[0]));
                     }
-                    
+
                     // String functions
                     "len" if args.len() == 1 => {
                         return Ok(format!("{}.size()", args_cpp[0]));
@@ -738,7 +800,37 @@ pub fn emit_expression_cpp(
                     "ord" if args.len() == 1 => {
                         return Ok(format!("static_cast<int>({}[0])", args_cpp[0]));
                     }
-                    
+                    "ascii" if args.len() == 1 => {
+                        return Ok(format!("eppx_ascii({})", args_cpp[0]));
+                    }
+                    "bytearray" => { // bytearray() can take 0 or 1 argument
+                        if args.is_empty() {
+                            return Ok("eppx_bytearray()".to_string());
+                        } else if args.len() == 1 {
+                            // The C++ side will rely on overloading for std::string, long long, or std::vector<long long>
+                            // Note: This assumes the argument 'args[0]' from AST will compile to a type
+                            // compatible with one of the eppx_bytearray constructors.
+                            // For example, if args[0] is an EPPX list of integers, it should compile to std::vector<long long>.
+                            // If it's an EPPX integer, it should compile to long long.
+                            // If it's an EPPX string, it should compile to std::string.
+                            return Ok(format!("eppx_bytearray({})", args_cpp[0]));
+                        } else {
+                            // Or handle error: too many arguments for bytearray
+                            return Err(format!("bytearray expects 0 or 1 arguments, got {}", args.len()));
+                        }
+                    }
+                    "bytes" => { // bytes() can take 0 or 1 argument, or a bytearray
+                        if args.is_empty() {
+                            return Ok("eppx_bytes()".to_string());
+                        } else if args.len() == 1 {
+                            // C++ side will rely on overloading for std::string, long long,
+                            // std::vector<long long>, or eppx_bytearray.
+                            return Ok(format!("eppx_bytes({})", args_cpp[0]));
+                        } else {
+                            return Err(format!("bytes expects 0 or 1 arguments, got {}", args.len()));
+                        }
+                    }
+
                     // Utility functions
                     "hex" if args.len() == 1 => {
                         return Ok(format!("eppx_hex({})", args_cpp[0]));
@@ -749,7 +841,7 @@ pub fn emit_expression_cpp(
                     "oct" if args.len() == 1 => {
                         return Ok(format!("eppx_oct({})", args_cpp[0]));
                     }
-                    
+
                     // Collection functions
                     "sum" if args.len() == 1 => {
                         return Ok(format!("eppx_sum({})", args_cpp[0]));
@@ -763,7 +855,7 @@ pub fn emit_expression_cpp(
                     "reversed" if args.len() == 1 => {
                         return Ok(format!("eppx_reversed({})", args_cpp[0]));
                     }
-                    
+
                     // Collection constructors
                     "list" if args.len() == 0 => {
                         return Ok("std::vector<eppx_variant>{}".to_string());
@@ -783,7 +875,7 @@ pub fn emit_expression_cpp(
                     "set" if args.len() == 1 => {
                         return Ok(format!("eppx_to_set({})", args_cpp[0]));
                     }
-                    
+
                     // I/O functions
                     "input" if args.len() == 0 => {
                         return Ok("eppx_input()".to_string());
@@ -791,7 +883,7 @@ pub fn emit_expression_cpp(
                     "input" if args.len() == 1 => {
                         return Ok(format!("eppx_input({})", args_cpp[0]));
                     }
-                    
+
                     // Type checking functions
                     "type" if args.len() == 1 => {
                         return Ok(format!("eppx_type({})", args_cpp[0]));
@@ -800,9 +892,27 @@ pub fn emit_expression_cpp(
                         return Ok(format!("eppx_isinstance({}, {})", args_cpp[0], args_cpp[1]));
                     }
                     "callable" if args.len() == 1 => {
-                        return Ok(format!("eppx_callable({})", args_cpp[0]));
+                        // Special handling for callable based on AST type if possible
+                        let arg_expr = &args[0]; // The single argument to callable()
+                        match arg_expr {
+                            Expression::Identifier(id_name) => {
+                                if function_table.get_function(id_name).is_some() {
+                                    return Ok("true".to_string()); // Known function, callable
+                                }
+                                // If it's an identifier but not in function_table, it's a variable.
+                                // Fall through to runtime check for variables.
+                            }
+                            Expression::Lambda { .. } => {
+                                return Ok("true".to_string()); // Lambdas are callable
+                            }
+                            _ => {
+                                // For other expression types, fall through to runtime check
+                            }
+                        }
+                        // Default to runtime check if not resolved statically
+                        return Ok(format!("eppx_callable_runtime({})", args_cpp[0]));
                     }
-                    
+
                     // Object introspection
                     "id" if args.len() == 1 => {
                         return Ok(format!("reinterpret_cast<uintptr_t>(&{})", args_cpp[0]));
@@ -822,12 +932,12 @@ pub fn emit_expression_cpp(
                     "delattr" if args.len() == 2 => {
                         return Ok(format!("eppx_delattr({}, {})", args_cpp[0], args_cpp[1]));
                     }
-                    
+
                     // Hash function
                     "hash" if args.len() == 1 => {
                         return Ok(format!("std::hash<eppx_variant>{{}}({})", args_cpp[0]));
                     }
-                    
+
                     // Advanced functions that need custom implementation
                     "enumerate" if args.len() == 1 => {
                         return Ok(format!("eppx_enumerate({})", args_cpp[0]));
@@ -844,11 +954,11 @@ pub fn emit_expression_cpp(
                     "sorted" if args.len() == 1 => {
                         return Ok(format!("eppx_sorted({})", args_cpp[0]));
                     }
-                    
+
                     _ => {} // Fall through to generic function call
                 }
             }
-            
+
             // Generic function call
             let callee_cpp = emit_expression_cpp(callee, symbol_table, function_table, type_map)?;
             Ok(format!("{}({})", callee_cpp, args_cpp.join(", ")))
@@ -863,7 +973,7 @@ pub fn emit_expression_cpp(
             // symbol_table.exit_scope();
             // Ok(format!("[=]({}) {{ return {}; }})", params_cpp, body_cpp))
             // Simplified lambda generation, proper scoping for body needs care if it's a block
-            
+
             // Create a temporary new symbol table for the lambda's scope to avoid interference
             let mut lambda_symbol_table = symbol_table.fork(); // Assumes SymbolTable has a fork method or similar for isolated scopes
 
@@ -875,7 +985,7 @@ pub fn emit_expression_cpp(
             // Lambdas in E++ have a single expression as body.
             // If the body were a block of statements, it would need _generate_cpp_code_with_vars
             let body_cpp = emit_expression_cpp(body, &mut lambda_symbol_table, function_table, type_map)?;
-            
+
             Ok(format!("([=]({}) {{ return {}; }})", params_cpp, body_cpp))
         }
         Expression::BinaryOperation { left, op, right } => {
@@ -903,7 +1013,7 @@ pub fn emit_expression_cpp(
                     return Ok(format!("{} && {}", l, r));
                 },
                 BinOp::Or => {
-                    // In Python, 'or' returns the first truthy value or the last value  
+                    // In Python, 'or' returns the first truthy value or the last value
                     // In C++, || returns bool. For simplicity, we'll use || but cast to bool context
                     return Ok(format!("{} || {}", l, r));
                 },
@@ -1081,7 +1191,7 @@ fn emit_method_cpp(method_name: &str, params: &[String], _body: &[AstNode]) -> R
 
 fn generate_decorator_wrappers(decorators: &[Decorator]) -> Result<String, String> {
     let mut wrapper_code = String::new();
-    
+
     for decorator in decorators {
         match decorator {
             Decorator::Simple(name) => {
@@ -1117,7 +1227,7 @@ fn generate_decorator_wrappers(decorators: &[Decorator]) -> Result<String, Strin
                         }
                     }
                 }
-                
+
                 match name.as_str() {
                     "retry" => {
                         wrapper_code.push_str("// Retry decorator: retries function on failure\n");
@@ -1137,7 +1247,6 @@ fn generate_decorator_wrappers(decorators: &[Decorator]) -> Result<String, Strin
             }
         }
     }
-    
+
     Ok(wrapper_code)
 }
-

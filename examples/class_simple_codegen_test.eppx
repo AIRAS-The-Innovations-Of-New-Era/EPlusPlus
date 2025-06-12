@@ -1,0 +1,18 @@
+// Test codegen for simple class definition
+class MyClass:
+    x = 10
+    y = "hello"
+
+    def greet(name_param):
+        print("Hello, " + name_param)
+
+    def add(a, b):
+        return a + b
+
+// Attempt to use (won't fully work without instantiation/member access support)
+// MyClass.greet("Test User")
+// print(MyClass.x)
+// res = MyClass.add(5, 3)
+// print(res)
+
+print("Simple class codegen test file created.")

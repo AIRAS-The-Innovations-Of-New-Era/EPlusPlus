@@ -1,0 +1,22 @@
+// Test bytearray construction and printing
+
+// From string
+print(bytearray("hello"))
+print(bytearray("wörld")) // String with non-ASCII characters
+
+// From integer (size)
+print(bytearray(5))
+print(bytearray(0))
+
+// From list of integers
+print(bytearray([72, 101, 108, 108, 111])) // "Hello"
+print(bytearray([0, 10, 255, 128]))
+// print(bytearray([10, 20, 256])) // This should cause a runtime error in C++ due to out-of-range value
+
+// Empty bytearray
+print(bytearray())
+
+// Test case that might cause an error (if error handling is robust)
+// print(bytearray([10, "not_an_int", 20])) // Type error if strict
+// print(bytearray("hello", "utf-16")) // Encoding not yet supported in this simple version
+// print(bytearray(-1)) // Invalid size

@@ -14,7 +14,7 @@ pub struct EppParser;
 fn process_escape_sequences(input: &str) -> Result<String, String> {
     let mut result = String::new();
     let mut chars = input.chars().peekable();
-    
+
     while let Some(ch) = chars.next() {
         if ch == '\\' {
             if let Some(&next_ch) = chars.peek() {
@@ -40,7 +40,7 @@ fn process_escape_sequences(input: &str) -> Result<String, String> {
             result.push(ch);
         }
     }
-    
+
     Ok(result)
 }
 
@@ -68,7 +68,7 @@ fn build_recursive_ast_from_binary_expr_rule(
             // Expecting an op_rule here (e.g. logical_or_op, bitwise_and_op)
             let op_rule = op_pair_or_direct_op_str_pair.as_rule(); // This is the <op_type>_op rule
             let op_str_from_rule = op_pair_or_direct_op_str_pair.as_str(); // This is the actual operator string e.g. "or", "&"
-            
+
             op = rule_to_op_str_map
                 .iter()
                 .find(|(rule, _)| *rule == op_rule) // Match the <op_type>_op rule
@@ -78,7 +78,7 @@ fn build_recursive_ast_from_binary_expr_rule(
                 .map(|(_, bin_op)| bin_op.clone())
                 .ok_or_else(|| format!("Unknown operator: {} for rule {:?}", op_str_from_rule, op_rule))?;
         }
-        
+
         let right_pair = pairs.next().ok_or_else(|| format!("Missing right operand for operator"))?;
         let right = sub_rule_parser(right_pair)?;
         left = Expression::BinaryOperation {
@@ -219,7 +219,7 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
         }        Rule::mul_div_mod => {
             build_recursive_ast_from_binary_expr_rule(pair.into_inner(), build_ast_from_expression, &[
                 (Rule::mul_op, vec![
-                    ("*", BinOp::Mul), ("/", BinOp::Div), 
+                    ("*", BinOp::Mul), ("/", BinOp::Div),
                     ("//", BinOp::FloorDiv), ("%", BinOp::Mod)
                 ])
             ], None)
@@ -242,11 +242,11 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
         Rule::unary_bitwise_not_power => {
             let mut inner = pair.into_inner();
             let first_child = inner.next().unwrap();
-            if first_child.as_rule() == Rule::unary_bitwise_not_op { 
+            if first_child.as_rule() == Rule::unary_bitwise_not_op {
                 let operand = build_ast_from_expression(inner.next().unwrap())?;
                 Ok(Expression::UnaryOperation { op: UnaryOp::BitNot, operand: Box::new(operand) })
             } else {
-                build_ast_from_expression(first_child) 
+                build_ast_from_expression(first_child)
             }
         }
         Rule::power => {
@@ -262,10 +262,10 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
             } else {
                 return Err("Invalid string literal".to_string());
             };
-            
+
             // Process escape sequences
             let processed_content = process_escape_sequences(content)?;
-            
+
             Ok(Expression::StringLiteral(processed_content))
         }Rule::integer_literal => {
             let val = pair.as_str().parse::<i64>().map_err(|e| format!("Invalid integer: {}", e))?;
@@ -288,7 +288,7 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
             // Peek at the first inner pair to see if it's a parameter_list
             // Grammar: lambda_expression = { "lambda" ~ parameter_list? ~ ":" ~ expression }
             // inner_pairs will contain [parameter_list (if present), expression]
-            
+
             let first_inner_pair = inner_pairs.peek().ok_or_else(|| "Lambda expression is empty".to_string())?;
 
             if first_inner_pair.as_rule() == Rule::parameter_list {
@@ -414,10 +414,10 @@ fn parse_argument(pair: Pair<Rule>) -> Result<Argument, String> {
 // Function to parse decorator
 fn parse_decorator(pair: Pair<Rule>) -> Result<Decorator, String> {
     let mut inner = pair.into_inner(); // decorator_name, decorator_args?
-    
+
     let name_pair = inner.next().ok_or("Decorator missing name")?;
     let decorator_name = name_pair.as_str().to_string();
-    
+
     if let Some(args_pair) = inner.next() {
         // Decorator has arguments
         let mut args = Vec::new();
@@ -445,8 +445,7 @@ fn parse_decorator(pair: Pair<Rule>) -> Result<Decorator, String> {
 // Renamed from build_ast_from_statement_final
 fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
     // Determine the actual specific rule to process.
-    // 'pair' is expected to be Rule::statement (when called from program loop or block processing)
-    // or Rule::function_definition (when called from program loop).
+    // 'pair' is expected to be Rule::statement, Rule::function_definition, or Rule::class_definition.
     let specific_statement_pair = match pair.as_rule() {
         Rule::statement => {
             let pair_str = pair.as_str(); // Get string representation before moving
@@ -454,7 +453,8 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                 format!("Rule::statement was empty. Content: '{}'", pair_str)
             })?
         }
-        Rule::function_definition => pair, // function_definition is processed directly by its own structure
+        Rule::function_definition => pair,
+        Rule::class_definition => pair,    // class_definition is processed directly
         _ => return Err(format!("build_ast_from_statement called with unexpected rule: {:?}. Content: '{}'", pair.as_rule(), pair.as_str())),
     };
 
@@ -498,7 +498,7 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
             let then_body = then_block_pair.into_inner()
                                 .filter(|p| p.as_rule() == Rule::statement)
                                 .map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
-            
+
             let mut elifs = Vec::new();
             while let Some(peeked_pair) = inner_rules.peek() {
                 if peeked_pair.as_rule() == Rule::elif_clause {
@@ -515,7 +515,7 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                     break; // Not an elif_clause, could be else_clause or nothing
                 }
             }
-            
+
             let else_body = if let Some(peeked_pair) = inner_rules.peek() {
                 if peeked_pair.as_rule() == Rule::else_clause {
                     let else_pair = inner_rules.next().unwrap(); // consume else_clause
@@ -563,7 +563,7 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
         }Rule::function_definition => {
             // specific_statement_pair is Rule::function_definition
             let mut func_def_inner = specific_statement_pair.into_inner(); // decorator*, def, identifier, parameter_list?, block
-            
+
             // Parse decorators first
             let mut decorators = Vec::new();
             while let Some(peeked) = func_def_inner.peek() {
@@ -574,10 +574,10 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                     break;
                 }
             }
-            
+
             // Skip "def" keyword - it's implicit in the grammar
             let name = func_def_inner.next().unwrap().as_str().to_string();
-            
+
             let mut params = Vec::new();
             if let Some(peeked_param_or_block) = func_def_inner.peek() {
                 if peeked_param_or_block.as_rule() == Rule::parameter_list {
@@ -590,17 +590,51 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                     }
                 }
             }
-            
+
             let block_pair = func_def_inner.next().ok_or_else(|| format!("Function '{}' missing block.", name))?;
             if block_pair.as_rule() != Rule::block { return Err(format!("Function '{}' expected block, got {:?}.", name, block_pair.as_rule())); }
             let body = block_pair.into_inner()
-                            .filter(|p| p.as_rule() == Rule::statement)
+                            .filter(|p| p.as_rule() == Rule::statement || p.as_rule() == Rule::function_definition) // Allow nested functions
                             .map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
             Ok(AstNode::Statement(Statement::FunctionDef {
                 name,
                 params,
                 body,
                 decorators,
+            }))
+        }
+        Rule::class_definition => {
+            let mut class_def_inner = specific_statement_pair.into_inner(); // identifier, optional expression (base class), block
+
+            let name_pair = class_def_inner.next().ok_or("Class definition missing name")?;
+            if name_pair.as_rule() != Rule::identifier {
+                 return Err(format!("Expected identifier for class name, got {:?} ('{}')", name_pair.as_rule(), name_pair.as_str()));
+            }
+            let name = name_pair.as_str().to_string();
+
+            let mut base_class_expr: Option<Box<Expression>> = None;
+            if let Some(peeked_pair) = class_def_inner.peek() {
+                // The grammar `("(" ~ expression ~ ")")?` means the expression is directly the next rule if present.
+                // The parentheses are part of the optional group but not separate rules we need to step into here.
+                if peeked_pair.as_rule() == Rule::expression {
+                    let expr_pair = class_def_inner.next().unwrap(); // Consume the expression
+                    base_class_expr = Some(Box::new(build_ast_from_expression(expr_pair)?));
+                }
+            }
+
+            let block_pair = class_def_inner.next().ok_or_else(|| format!("Class '{}' missing block.", name))?;
+            if block_pair.as_rule() != Rule::block {
+                return Err(format!("Class '{}' expected block, got {:?} ('{}').", name, block_pair.as_rule(), block_pair.as_str()));
+            }
+
+            let body = block_pair.into_inner()
+                                .filter(|p| p.as_rule() == Rule::statement || p.as_rule() == Rule::function_definition || p.as_rule() == Rule::class_definition)
+                                .map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
+
+            Ok(AstNode::Statement(Statement::ClassDef {
+                name,
+                base_class: base_class_expr,
+                body,
             }))
         }
         Rule::return_statement => {
@@ -641,15 +675,19 @@ pub fn parse_eppx_string(input: &str) -> Result<Vec<AstNode>, String> {
             // Iterate over the inner pairs of the program rule
             for pair in program_pair.into_inner() {
                 match pair.as_rule() {
-                    Rule::statement | Rule::function_definition => {
+                    Rule::statement | Rule::function_definition | Rule::class_definition => { // Added Rule::class_definition
                         ast_nodes.push(build_ast_from_statement(pair)?);
                     }
                     Rule::COMMENT | Rule::WHITESPACE => {
                         // skip
                     }
+                    Rule::EOI => { // End Of Input, also skip
+                        // skip
+                    }
                     _ => {
                         // Print debug info for unexpected rules
                         // eprintln!("Skipping unexpected rule in program: {:?} content: '{}'", pair.as_rule(), pair.as_str());
+                         return Err(format!("Unexpected rule in program: {:?} content: '{}'", pair.as_rule(), pair.as_str()));
                     }
                 }
             }

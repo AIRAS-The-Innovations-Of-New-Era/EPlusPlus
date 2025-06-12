@@ -1,9 +1,9 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 COMMENT = _{ ("//" ~ (!NEWLINE ~ ANY)*) | ("#" ~ (!NEWLINE ~ ANY)*) }
 
-program = { SOI ~ ( (statement | function_definition) ~ (WHITESPACE* ~ COMMENT*) )* ~ EOI }
+program = { SOI ~ ( (statement | function_definition | class_definition) ~ (WHITESPACE* ~ COMMENT*) )* ~ EOI }
 
-statement = { assignment | print_statement | if_statement | while_statement | for_statement | function_definition | return_statement | expression_statement | break_statement | continue_statement | pass_statement }
+statement = { assignment | print_statement | if_statement | while_statement | for_statement | function_definition | class_definition | return_statement | expression_statement | break_statement | continue_statement | pass_statement }
 expression_statement = { expression }
 
 assignment_operator = @{ "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "//=" | "&=" | "|=" | "^=" | ">>=" | "<<=" }
@@ -104,6 +104,7 @@ identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 NEWLINE = _{ "\r"? ~ "\n" }
 
 function_definition = { decorator* ~ "def" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ block }
+class_definition = { "class" ~ identifier ~ ("(" ~ expression ~ ")")? ~ block }
 parameter_list = { identifier ~ ("," ~ identifier)* }
 
 decorator = { "@" ~ decorator_name ~ decorator_args? }

@@ -1,0 +1,31 @@
+// Test bytes construction and printing
+
+// From string
+print(bytes("hello"))
+print(bytes("wörld")) // String with non-ASCII characters
+
+// From integer (size)
+print(bytes(5))
+print(bytes(0))
+
+// From list of integers
+print(bytes([72, 101, 108, 108, 111])) // "Hello"
+print(bytes([0, 10, 255, 128]))
+// print(bytes([10, 20, 256])) // This should cause a runtime error in C++ due to out-of-range value
+
+// Empty bytes
+print(bytes())
+
+// From bytearray
+ba = bytearray("test_from_bytearray")
+print(bytes(ba))
+
+// Immutability test (conceptual - EPPX doesn't have attribute assignment or methods yet to test this fully)
+// b = bytes("abc")
+// b[0] = 100 // This would be a TypeError in Python. In EPPX, this syntax isn't supported yet.
+// If eppx_bytes had an append method, bytes_obj.append(10) would fail if it were exposed.
+// For now, the C++ struct for eppx_bytes is designed to be immutable by not providing mutating methods
+// and making 'data' const (though I had to use const_cast in one constructor for initialization).
+
+// print(bytes("hello", "utf-16")) // Encoding not yet supported
+// print(bytes(-1)) // Invalid size

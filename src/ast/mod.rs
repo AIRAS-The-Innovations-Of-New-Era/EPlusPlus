@@ -37,10 +37,10 @@ pub enum Statement {
     Break,                              // Added for break statements
     Continue,                           // Added for continue statements
     Pass,                               // Added for pass statements
-    #[allow(dead_code)] // Allowed because it's a planned feature
     ClassDef {
         name: String,
-        body: Vec<AstNode>, // Simplified: can contain assignments (members) or defs (methods)
+        base_class: Option<Box<Expression>>, // For inheritance
+        body: Vec<AstNode>, // Methods and member variables
     },
 }
 
