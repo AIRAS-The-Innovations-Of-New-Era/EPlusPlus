@@ -1,0 +1,66 @@
+// Test cases for filter(), map(), enumerate(), divmod()
+
+print("--- Testing divmod() ---")
+print("divmod(10, 3):", divmod(10, 3))                 // Expected: (3, 1)
+print("divmod(10.5, 3):", divmod(10.5, 3))             // Expected: (3.0, 1.5)
+print("divmod(-10, 3):", divmod(-10, 3))               // Expected: (-4, 2)
+print("divmod(10, -3):", divmod(10, -3))               // Expected: (-4, -2)
+print("divmod(-10.0, -3.0):", divmod(-10.0, -3.0))     // Expected: (3.0, -1.0)
+
+print("\n--- Testing enumerate() ---")
+e1 = enumerate(["a", "b", "c"])
+print("e1 (enumerate object):", e1)
+// To see contents, we'd typically use list(e1) or a for loop.
+// print("list(e1):", list(e1)) // Expected: [(0, 'a'), (1, 'b'), (2, 'c')]
+
+e2 = enumerate("xyz", 5)
+print("e2 (enumerate object):", e2)
+// print("list(e2):", list(e2)) // Expected: [(5, 'x'), (6, 'y'), (7, 'z')]
+
+e3 = enumerate([])
+print("e3 (empty):", e3)
+// print("list(e3):", list(e3)) // Expected: []
+
+print("\n--- Testing filter() ---")
+def is_positive(n):
+  return n > 0
+
+f1 = filter(is_positive, [-2, -1, 0, 1, 2, 3])
+print("f1 (filter object):", f1)
+// print("list(f1):", list(f1)) // Expected: [1, 2, 3]
+
+f2 = filter(None, [0, 1, False, True, "hello", "", None])
+print("f2 (filter with None):", f2)
+// print("list(f2):", list(f2)) // Expected: [1, True, "hello"] (Truthy values)
+
+lambda_is_even = lambda x: x % 2 == 0
+f3 = filter(lambda_is_even, [1,2,3,4,5,6])
+print("f3 (filter with lambda):", f3)
+// print("list(f3):", list(f3)) // Expected: [2,4,6]
+
+print("\n--- Testing map() ---")
+def double_val(n):
+  return n * 2
+
+m1 = map(double_val, [1, 2, 3, 4])
+print("m1 (map object):", m1)
+// print("list(m1):", list(m1)) // Expected: [2, 4, 6, 8]
+
+lambda_add_one = lambda x: x + 1
+m2 = map(lambda_add_one, [10, 20, 30])
+print("m2 (map with lambda):", m2)
+// print("list(m2):", list(m2)) // Expected: [11, 21, 31]
+
+lambda_add_two = lambda x, y: x + y
+m3 = map(lambda_add_two, [1, 2, 3], [10, 20, 30])
+print("m3 (map with two iterables):", m3)
+// print("list(m3):", list(m3)) // Expected: [11, 22, 33]
+
+m4 = map(None, [1,2,3]) // map with None function (identity)
+print("m4 (map with None function):", m4)
+// print("list(m4):", list(m4)) // Expected: [1,2,3]
+
+// m5 = map(lambda x,y: x+y, [1,2,3], [4,5]) // Iterables of different lengths
+// print("list(m5):", list(m5)) // Expected: [5, 7] (stops at shortest)
+
+print("\nFunctional tools tests complete.")

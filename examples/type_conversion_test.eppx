@@ -1,0 +1,95 @@
+// Test cases for complex() and list() built-in functions
+
+print("--- Testing complex() ---")
+c1 = complex()
+print("c1 Type:", type(c1), "Value:", c1) // Expected: <class 'complex'> (0+0j)
+
+c2 = complex(5)
+print("c2 Type:", type(c2), "Value:", c2) // Expected: <class 'complex'> (5+0j)
+
+c3 = complex(1.5, 2.5)
+print("c3 Type:", type(c3), "Value:", c3) // Expected: <class 'complex'> (1.5+2.5j)
+
+c4 = complex(True)
+print("c4 Type:", type(c4), "Value:", c4) // Expected: <class 'complex'> (1+0j)
+
+c5 = complex(10, False)
+print("c5 Type:", type(c5), "Value:", c5) // Expected: <class 'complex'> (10+0j)
+
+// c_err1 = complex("hello") // Expected: TypeError
+// c_err2 = complex(1, "world") // Expected: TypeError
+
+print("\n--- Testing list() ---")
+l1 = list()
+print("l1 Type:", type(l1), "Value:", l1) // Expected: <class 'list'> []
+
+l2 = list("hello")
+print("l2 Type:", type(l2), "Value:", l2) // Expected: <class 'list'> ['h', 'e', 'l', 'l', 'o']
+
+b_arr = bytes("abc")
+l3 = list(b_arr)
+print("l3 Type:", type(l3), "Value:", l3) // Expected: <class 'list'> [97, 98, 99]
+
+ba_arr = bytearray("def")
+l4 = list(ba_arr)
+print("l4 Type:", type(l4), "Value:", l4) // Expected: <class 'list'> [100, 101, 102]
+
+l5_orig = [1, "two", False]
+l5_copy = list(l5_orig)
+print("l5_orig Type:", type(l5_orig), "Value:", l5_orig)
+print("l5_copy Type:", type(l5_copy), "Value:", l5_copy)
+// setattr(l5_orig, 0, 100) // Modifying l5_orig if lists were mutable and setattr worked on list indices
+// print("l5_orig after mod:", l5_orig)
+// print("l5_copy (should be shallow copy):", l5_copy)
+
+
+// l_err1 = list(123) // Expected: TypeError
+
+print("\n--- Testing tuple() ---")
+t1 = tuple()
+print("t1 Type:", type(t1), "Value:", t1) // Expected: <class 'tuple'> ()
+
+t2 = tuple("hello")
+print("t2 Type:", type(t2), "Value:", t2) // Expected: <class 'tuple'> ('h', 'e', 'l', 'l', 'o')
+
+t3 = tuple([1, "a", True])
+print("t3 Type:", type(t3), "Value:", t3) // Expected: <class 'tuple'> (1, 'a', True)
+
+t4_orig = (1,2,3)
+t4_from_tuple = tuple(t4_orig)
+print("t4_from_tuple Type:", type(t4_from_tuple), "Value:", t4_from_tuple)
+
+
+print("\n--- Testing set() ---")
+set1 = set()
+print("set1 Type:", type(set1), "Value:", set1) // Expected: <class 'set'> set() or {}
+
+set2 = set("hellohello")
+print("set2 Type:", type(set2), "Value:", set2) // Expected: <class 'set'> {'h', 'e', 'l', 'o'} (order may vary)
+
+set3 = set([1, 2, "apple", 2, "banana", "apple"])
+print("set3 Type:", type(set3), "Value:", set3) // Expected: <class 'set'> {1, 2, 'apple', 'banana'} (order may vary)
+
+// set_err1 = set([[1,2]]) // Expected: TypeError (list is unhashable)
+
+print("\n--- Testing frozenset() ---")
+fs1 = frozenset()
+print("fs1 Type:", type(fs1), "Value:", fs1) // Expected: <class 'frozenset'> frozenset({})
+
+fs2 = frozenset("hellohello")
+print("fs2 Type:", type(fs2), "Value:", fs2) // Expected: <class 'frozenset'> frozenset({'h', 'e', 'l', 'o'}) (order may vary)
+
+fs3 = frozenset([1, 2, "apple", 2, "banana", "apple"])
+print("fs3 Type:", type(fs3), "Value:", fs3) // Expected: <class 'frozenset'> frozenset({1, 2, 'apple', 'banana'}) (order may vary)
+
+// fs_err1 = frozenset([[1,2]]) // Expected: TypeError (list is unhashable)
+
+// Hash tests for tuple and frozenset
+print("hash(t1):", hash(t1))
+print("hash(t2):", hash(t2))
+print("hash(fs1):", hash(fs1))
+print("hash(fs2):", hash(fs2))
+// print("hash(set2):", hash(set2)) // Expected: TypeError (set is unhashable)
+
+
+print("\nType conversion tests complete.")

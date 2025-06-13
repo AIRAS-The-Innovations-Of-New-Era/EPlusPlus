@@ -1,0 +1,57 @@
+// Test hasattr(), getattr(), setattr(), delattr() for static class members
+
+class TestClass:
+    s_var_int = 123
+    s_var_str = "hello_static"
+    # For simplicity in this stage, members involved in getattr/setattr via eppx_variant
+    # are best treated as eppx_variant internally in C++, or require careful type handling.
+    # The current codegen makes them eppx_variant.
+
+    def s_method(p1, p2):
+        print("TestClass.s_method called with:", p1, p2)
+        return p1 + p2
+
+print("--- hasattr ---")
+print("hasattr(TestClass, \"s_var_int\"):", hasattr(TestClass, "s_var_int"))       // Expected: true
+print("hasattr(TestClass, \"s_var_str\"):", hasattr(TestClass, "s_var_str"))       // Expected: true
+print("hasattr(TestClass, \"s_method\"):", hasattr(TestClass, "s_method"))         // Expected: true (if methods are included in 'has' check)
+print("hasattr(TestClass, \"non_existent\"):", hasattr(TestClass, "non_existent")) // Expected: false
+
+print("\n--- getattr ---")
+print("getattr(TestClass, \"s_var_int\"):", getattr(TestClass, "s_var_int"))       // Expected: 123
+print("getattr(TestClass, \"s_var_str\"):", getattr(TestClass, "s_var_str"))       // Expected: "hello_static"
+
+// Getting a method (currently might not be directly callable via this mechanism, but should exist)
+// print("getattr(TestClass, \"s_method\"):", getattr(TestClass, "s_method"))
+
+print("getattr(TestClass, \"non_existent_get\", \"default_val\"):", getattr(TestClass, "non_existent_get", "default_val")) // Expected: "default_val"
+// print("getattr(TestClass, \"non_existent_get_no_default\"):", getattr(TestClass, "non_existent_get_no_default")) // Expected: AttributeError (runtime error)
+
+print("\n--- setattr ---")
+print("Original s_var_int:", getattr(TestClass, "s_var_int"))
+setattr(TestClass, "s_var_int", 456)
+print("Modified s_var_int:", getattr(TestClass, "s_var_int"))                   // Expected: 456
+
+print("Original s_var_str:", getattr(TestClass, "s_var_str"))
+setattr(TestClass, "s_var_str", "new_static_value")
+print("Modified s_var_str:", getattr(TestClass, "s_var_str"))               // Expected: "new_static_value"
+
+// setattr(TestClass, "s_method", "cant_set_method_like_this") // Behavior might be to error or allow if method not specially handled by set_attr_funcs
+
+print("\n--- delattr ---")
+// print("delattr(TestClass, \"s_var_int\"):", delattr(TestClass, "s_var_int"))      // Expected: AttributeError (runtime error)
+// print("hasattr(TestClass, \"s_var_int\") after del (if it didn't error):", hasattr(TestClass, "s_var_int"))
+
+
+// Test with another class to ensure registry works for multiple classes
+class AnotherTest:
+    another_static = "another"
+
+print("\n--- Another Class ---")
+print("hasattr(AnotherTest, \"another_static\"):", hasattr(AnotherTest, "another_static")) // Expected: true
+print("getattr(AnotherTest, \"another_static\"):", getattr(AnotherTest, "another_static")) // Expected: "another"
+setattr(AnotherTest, "another_static", "changed_another")
+print("getattr(AnotherTest, \"another_static\") after set:", getattr(AnotherTest, "another_static")) // Expected: "changed_another"
+
+
+print("\nAttribute tests complete.")

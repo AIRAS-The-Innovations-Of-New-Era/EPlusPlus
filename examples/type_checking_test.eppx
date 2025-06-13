@@ -1,0 +1,55 @@
+// Test isinstance() and issubclass()
+
+print("--- Testing isinstance() ---")
+
+print("isinstance(1, int):", isinstance(1, "int")) // Codegen should convert "int" to string variant
+print("isinstance(1.0, float):", isinstance(1.0, "float"))
+print("isinstance(\"abc\", str):", isinstance("abc", "str"))
+print("isinstance(True, bool):", isinstance(True, "bool"))
+print("isinstance(None, NoneType):", isinstance(None, "NoneType"))
+print("isinstance([1, 2], list):", isinstance([1, 2], "list"))
+print("isinstance((1, 2), tuple):", isinstance((1, 2), "tuple"))
+print("isinstance({1, 2}, set):", isinstance({1, 2}, "set"))
+print("isinstance({'a': 1}, dict):", isinstance({'a': 1}, "dict"))
+print("isinstance(complex(1,2), complex):", isinstance(complex(1,2), "complex"))
+print("isinstance(bytes(\"hi\"), bytes):", isinstance(bytes("hi"), "bytes"))
+print("isinstance(bytearray(\"hi\"), bytearray):", isinstance(bytearray("hi"), "bytearray"))
+// print("isinstance(frozenset({1}), frozenset):", isinstance(frozenset({1}), "frozenset")) // frozenset not fully integrated into variant for isinstance check yet
+
+print("isinstance(1, (str, int, list)):", isinstance(1, (str, "int", list))) // tuple of types
+print("isinstance(\"a\", (str, int, list)):", isinstance("a", (str, "int", list)))
+print("isinstance([1], (str, int, list)):", isinstance([1], (str, "int", list)))
+print("isinstance(1.0, (str, int, float)):", isinstance(1.0, (str, "int", float)))
+
+
+class BaseClass_IT:
+  pass
+
+class DerivedClass_IT(BaseClass_IT):
+  pass
+
+// Instantiation not yet supported, so we can't test with actual instances yet.
+// ib = BaseClass_IT()
+// idc = DerivedClass_IT()
+// print("isinstance(idc, DerivedClass_IT):", isinstance(idc, DerivedClass_IT))
+// print("isinstance(idc, BaseClass_IT):", isinstance(idc, BaseClass_IT))
+// print("isinstance(ib, DerivedClass_IT):", isinstance(ib, DerivedClass_IT))
+// print("isinstance(ib, BaseClass_IT):", isinstance(ib, BaseClass_IT))
+// print("isinstance(1, MyClass):", isinstance(1, MyClass)) // MyClass not defined here
+
+print("\n--- Testing issubclass() ---")
+// issubclass requires class names (as identifiers or strings)
+print("issubclass(DerivedClass_IT, BaseClass_IT):", issubclass(DerivedClass_IT, BaseClass_IT)) // Expected: true
+print("issubclass(DerivedClass_IT, DerivedClass_IT):", issubclass(DerivedClass_IT, DerivedClass_IT)) // Expected: true
+print("issubclass(BaseClass_IT, DerivedClass_IT):", issubclass(BaseClass_IT, DerivedClass_IT))   // Expected: false
+
+// Test with tuple for classinfo
+print("issubclass(DerivedClass_IT, (BaseClass_IT, str)):", issubclass(DerivedClass_IT, (BaseClass_IT, str))) // Expected: true
+print("issubclass(DerivedClass_IT, (str, list)):", issubclass(DerivedClass_IT, (str, list)))          // Expected: false
+
+// Built-in types (rudimentary support - object and hierarchy not fully defined)
+// print("issubclass(int, int):", issubclass(int, int)) // True
+// print("issubclass(bool, int):", issubclass(bool, int)) // True in Python
+// print("issubclass(list, object):", issubclass(list, "object")) // Assuming "object" is a known root
+
+print("\nType checking tests complete.")

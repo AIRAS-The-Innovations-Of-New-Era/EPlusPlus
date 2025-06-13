@@ -1,0 +1,79 @@
+// Test id() and hash() built-in functions
+
+print("--- Testing id() ---")
+a = 10
+b = 20
+c = 10
+s1 = "hello"
+s2 = "world"
+s3 = "hello"
+l1 = [1, 2, 3]
+l2 = [1, 2, 3]
+l3 = l1
+
+print("id(a):", id(a))
+print("id(b):", id(b))
+print("id(c):", id(c)) // May or may not be same as id(a) due to small int optimization in Python (behavior in E++ might vary)
+print("id(10):", id(10)) // Literal, id might be different each time or reused
+
+id_a1 = id(a)
+id_a2 = id(a)
+print("id(a) == id(a) (same var twice):", id_a1 == id_a2) // Expected: true
+
+print("id(s1):", id(s1))
+print("id(s2):", id(s2))
+print("id(s3):", id(s3)) // May or may not be same as id(s1) due to string interning (behavior in E++ might vary)
+
+print("id(l1):", id(l1))
+print("id(l2):", id(l2)) // Expected to be different from id(l1)
+print("id(l3):", id(l3)) // Expected to be same as id(l1)
+print("id(l1) == id(l3):", id(l1) == id(l3)) // Expected: true
+print("id(l1) == id(l2):", id(l1) == id(l2)) // Expected: false
+
+
+print("\n--- Testing hash() ---")
+print("hash(10):", hash(10))
+print("hash(10):", hash(10)) // Expected: same as above
+print("hash(-5):", hash(-5))
+print("hash(0):", hash(0))
+
+print("hash(10.5):", hash(10.5))
+print("hash(10.5):", hash(10.5)) // Expected: same as above
+print("hash(0.0):", hash(0.0))
+
+print("hash(True):", hash(True))
+print("hash(False):", hash(False))
+// Python: hash(True) is 1, hash(False) is 0. E++ might differ but should be consistent.
+
+print("hash(\"hello\"):", hash("hello"))
+print("hash(\"hello\"):", hash("hello")) // Expected: same as above
+print("hash(\"world\"):", hash("world"))
+print("hash(\"\"):", hash("")) // Empty string
+
+// None is not yet explicitly in eppx_variant for hashing, but nullptr_t is.
+// The current eppx_hash_visitor does not have an operator() for std::nullptr_t.
+// This will need to be added to stdlib/builtins.hpp for hash(None) to work.
+// For now, this line would cause a compile error in the generated C++ if None maps to nullptr.
+// print("hash(None):", hash(None))
+
+b_obj = bytes("immutable_bytes")
+ba_obj = bytearray("mutable_bytearray")
+
+print("hash(b_obj):", hash(b_obj))
+print("hash(bytes(\"immutable_bytes\")):", hash(bytes("immutable_bytes"))) // Should be same as above
+print("hash(ba_obj):", hash(ba_obj))
+print("hash(bytearray(\"mutable_bytearray\")):", hash(bytearray("mutable_bytearray"))) // Should be same as above
+
+// Python lists, sets, dicts are unhashable.
+// Current eppx_hash_visitor doesn't handle std::vector, std::map, std::set directly.
+// If these are passed via eppx_variant, it would depend on eppx_variant definition and visitor.
+// For now, we expect these to either error or return a placeholder if they were supported.
+print("hash([1, 2, 3]): <placeholder or error - lists unhashable>") // Placeholder comment
+// print("hash({'a': 1}): <placeholder or error - dicts unhashable>")
+
+// Example of a function (names are not hashable by default in Python's hash())
+def my_test_func():
+  pass
+// print("hash(my_test_func):", hash(my_test_func)) // Functions are hashable by id in Python
+
+print("\nIntrospection tests complete.")

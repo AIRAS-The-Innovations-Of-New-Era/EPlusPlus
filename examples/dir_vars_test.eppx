@@ -1,0 +1,32 @@
+// Test dir() and vars() for static class members
+
+class MyTestClass:
+    s_int = 100
+    s_str = "static_string"
+
+    def s_method(p):
+        print("s_method called with", p)
+
+print("--- dir(MyTestClass) ---")
+d = dir(MyTestClass)
+print(d) // Expected to contain "s_int", "s_str", "s_method" (order may vary)
+
+print("\n--- vars(MyTestClass) ---")
+v = vars(MyTestClass)
+print(v) // Expected: a dict like {"s_int": 100, "s_str": "static_string"} (methods not included)
+
+print("\n--- Modify and re-check vars ---")
+setattr(MyTestClass, "s_int", 250)
+print("vars(MyTestClass) after s_int modification:", vars(MyTestClass)) // Expected: {"s_int": 250, "s_str": "static_string"}
+
+setattr(MyTestClass, "new_static_var", "added_later")
+print("hasattr(MyTestClass, \"new_static_var\"):", hasattr(MyTestClass, "new_static_var")) // Expected: true
+print("getattr(MyTestClass, \"new_static_var\"):", getattr(MyTestClass, "new_static_var")) // Expected: "added_later"
+print("vars(MyTestClass) after adding new_static_var:", vars(MyTestClass)) // Expected: {"s_int": 250, "s_str": "static_string", "new_static_var": "added_later"}
+
+
+print("\n--- dir() and vars() with no arguments ---")
+print("dir():", dir())   // Expected: empty list (for now)
+print("vars():", vars()) // Expected: empty dict (for now)
+
+print("\nDir/Vars tests complete.")

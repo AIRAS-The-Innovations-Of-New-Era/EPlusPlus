@@ -1,0 +1,52 @@
+// Test cases for reversed() and slice()
+
+print("--- Testing reversed() ---")
+r1 = reversed("abc")
+print("r1 (reversed object):", r1)
+// print("list(r1):", list(r1)) // Expected: ['c', 'b', 'a'] - Needs list() to consume iterators
+
+r2 = reversed([10, 20, 30])
+print("r2 (reversed object):", r2)
+// print("list(r2):", list(r2)) // Expected: [30, 20, 10]
+
+r3 = reversed((True, False, None))
+print("r3 (reversed object):", r3)
+// print("list(r3):", list(r3)) // Expected: [None, False, True]
+
+r4 = reversed("") // Empty string
+print("r4 (reversed object):", r4)
+// print("list(r4):", list(r4)) // Expected: []
+
+r5 = reversed([]) // Empty list
+print("r5 (reversed object):", r5)
+// print("list(r5):", list(r5)) // Expected: []
+
+// r_err = reversed(123) // Expected: TypeError
+
+print("\n--- Testing slice() ---")
+s1 = slice(10)
+print("s1 (slice object):", s1) // Expected: slice(None, 10, None) or similar
+
+s2 = slice(2, 20)
+print("s2 (slice object):", s2) // Expected: slice(2, 20, None)
+
+s3 = slice(5, 50, 5)
+print("s3 (slice object):", s3) // Expected: slice(5, 50, 5)
+
+s4 = slice(None, 100, None) // Explicit None
+print("s4 (slice object):", s4) // Expected: slice(None, 100, None)
+
+s5 = slice(None, None, -1)
+print("s5 (slice object):", s5) // Expected: slice(None, None, -1)
+
+// Test hashing of slice objects (if their components are hashable)
+// print("hash(s1):", hash(s1))
+// print("hash(s3):", hash(s3))
+
+// Application of slices is not part of this test, e.g.:
+// my_list = [0,1,2,3,4,5,6,7,8,9]
+// print("my_list[s1]:", my_list[s1]) // -> [0,1,2,3,4,5,6,7,8,9]
+// print("my_list[s3]:", my_list[s3]) // -> [5] (if step was 1, or [5] if step is handled by list slicing)
+                                  // Python: my_list[slice(5,50,5)] -> [5] if list is [0..9]
+
+print("\nIterator and Slice constructor tests complete.")
