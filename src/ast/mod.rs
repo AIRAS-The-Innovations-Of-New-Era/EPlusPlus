@@ -1,59 +1,47 @@
 // AST module placeholder
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum AstNode {
-    Statement(Statement),
-    // Future: ExpressionNode(Expression), Definition(Definition), etc.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum UnaryOp {
+    Not,
+    BitNot,
+    Negate,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Statement {
-    Print(Box<Expression>),
-    Assignment {
-        name: String,
-        operator: AssignmentOperator, // Changed from direct value to include operator
-        value: Box<Expression>,
-    },
-    If {
-        condition: Box<Expression>,
-        then_body: Vec<AstNode>,
-        elifs: Vec<(Expression, Vec<AstNode>)>,
-        else_body: Option<Vec<AstNode>>,
-    },
-    While {
-        condition: Box<Expression>,
-        body: Vec<AstNode>,
-    },    For {
-        vars: Vec<String>,  // Changed from single var to multiple vars
-        iterable: Box<Expression>,
-        body: Vec<AstNode>,
-    },FunctionDef {
-        name: String,
-        params: Vec<String>,
-        body: Vec<AstNode>,
-        decorators: Vec<Decorator>, // Added decorators support
-    },    Return(Option<Box<Expression>>),
-    ExpressionStatement(Box<Expression>), // Added for standalone expressions
-    Break,                              // Added for break statements
-    Continue,                           // Added for continue statements
-    Pass,                               // Added for pass statements
-    ClassDef {
-        name: String,
-        base_class: Option<Box<Expression>>, // For inheritance
-        body: Vec<AstNode>, // Methods and member variables
-    },
-}
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BinOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Pow,
+    FloorDiv,
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Decorator {
-    Simple(String),                           // @decorator_name
-    WithArgs(String, Vec<Argument>),          // @decorator_name(arg1, name=arg2, ...)
-}
+    // Comparison
+    Eq,
+    NotEq,
+    Lt,
+    Gt,
+    LtEq,
+    GtEq,
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Argument {
-    Positional(Expression),                   // func(expr)
-    Keyword(String, Expression),              // func(name=expr)
+    // Logical
+    And,
+    Or,
+
+    // Bitwise
+    BitAnd,
+    BitOr,
+    BitXor,
+    LShift,
+    RShift,
+    Assign, // Added for keyword argument handling in dict constructor
+    Is,
+    IsNot,
+    In,
+    NotIn,
 }
 
 #[allow(dead_code)]
@@ -76,88 +64,56 @@ pub enum AssignmentOperator {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq)] // Added Copy
-pub enum UnaryOp {
-    Not,    // Logical NOT
-    BitNot, // Bitwise NOT (~)
-    Negate, // Unary minus (-)
-    // UnaryPlus is typically a no-op, so we don't need a variant for it
-}
-
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     StringLiteral(String),
     IntegerLiteral(i64),
     FloatLiteral(f64),
     BooleanLiteral(bool),
-    NoneLiteral, // Added for None
-    ListLiteral(Vec<Expression>), // Added for list literals
-    TupleLiteral(Vec<Expression>), // For tuple literals
-    DictLiteral(Vec<(Expression, Expression)>), // For dict literals
-    SetLiteral(Vec<Expression>), // For set literals
-    FrozensetLiteral(Vec<Expression>), // For frozenset literals
-    ComplexLiteral(Box<Expression>, Box<Expression>), // For complex(a, b)
+    NoneLiteral,
+    ListLiteral(Vec<Expression>),
+    TupleLiteral(Vec<Expression>),
+    DictLiteral(Vec<(Expression, Expression)>),
+    SetLiteral(Vec<Expression>),
+    FrozensetLiteral(Vec<Expression>),
+    ComplexLiteral(Box<Expression>, Box<Expression>),
     Identifier(String),
-    BinaryOperation {
-        left: Box<Expression>,
-        op: BinOp,
-        right: Box<Expression>,
-    },    UnaryOperation { // New variant for unary operations
-        op: UnaryOp,
-        operand: Box<Expression>,
-    },
-    Lambda {
-        params: Vec<String>,
-        body: Box<Expression>,
-    },
-    ListComprehension {
-        element: Box<Expression>,
-        var: String,
-        iter: Box<Expression>,
-        condition: Option<Box<Expression>>,
-    }, // For list comprehensions (future)
-    Call {
-        callee: Box<Expression>,
-        args: Vec<Expression>,
-    },
+    BinaryOperation { left: Box<Expression>, op: BinOp, right: Box<Expression> },
+    UnaryOperation { op: UnaryOp, operand: Box<Expression> },
+    Lambda { params: Vec<String>, body: Box<Expression> },
+    ListComprehension { element: Box<Expression>, var: String, iter: Box<Expression>, condition: Option<Box<Expression>> },
+    Call { callee: Box<Expression>, args: Vec<Expression> },
 }
 
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq)] // Added Copy
-pub enum BinOp {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Mod,
-    Pow,
-    FloorDiv,
+#[derive(Debug, Clone, PartialEq)]
+pub enum Argument {
+    Positional(Expression),
+    Keyword(String, Expression),
+}
 
-    // Comparison
-    Eq,
-    NotEq,
-    Lt,
-    Gt,
-    LtEq,
-    GtEq,
+#[derive(Debug, Clone, PartialEq)]
+pub enum Decorator {
+    Simple(String),
+    WithArgs(String, Vec<Argument>),
+}
 
-    // Logical
-    And, // logical and
-    Or,  // logical or
+#[derive(Debug, Clone, PartialEq)]
+pub enum Statement {
+    Print(Box<Expression>),
+    Assignment { name: String, operator: AssignmentOperator, value: Box<Expression> },
+    If { condition: Box<Expression>, then_body: Vec<AstNode>, elifs: Vec<(Expression, Vec<AstNode>)>, else_body: Option<Vec<AstNode>> },
+    While { condition: Box<Expression>, body: Vec<AstNode> },
+    For { vars: Vec<String>, iterable: Box<Expression>, body: Vec<AstNode> },
+    FunctionDef { name: String, params: Vec<String>, body: Vec<AstNode>, decorators: Vec<Decorator> },
+    Return(Option<Box<Expression>>),
+    ExpressionStatement(Box<Expression>),
+    Break,
+    Continue,
+    Pass,
+    ClassDef { name: String, base_class: Option<Box<Expression>>, body: Vec<AstNode> },
+}
 
-    // Bitwise
-    BitAnd,   // &
-    BitOr,    // |
-    BitXor,   // ^
-    LShift,   // <<
-    RShift,   // >>
-
-    // Identity
-    Is,
-    IsNot,
-
-    // Membership
-    In,
-    NotIn,
+#[derive(Debug, Clone, PartialEq)]
+pub enum AstNode {
+    Statement(Box<Statement>),
 }

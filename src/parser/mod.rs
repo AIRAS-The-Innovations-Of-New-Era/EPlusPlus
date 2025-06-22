@@ -255,7 +255,7 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
             ], None)
         }        Rule::string_literal => {
             let full_str = pair.as_str();
-            let (quote_char, content) = if full_str.starts_with('"') {
+            let (_quote_char, content) = if full_str.starts_with('"') {
                 ('"', &full_str[1..full_str.len()-1])
             } else if full_str.starts_with('\'') {
                 ('\'', &full_str[1..full_str.len()-1])
@@ -462,7 +462,7 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
         Rule::print_statement => {
             let expr_pair = specific_statement_pair.into_inner().next().ok_or_else(|| "Print statement missing expression".to_string())?;
             let expr_node = build_ast_from_expression(expr_pair)?;
-            Ok(AstNode::Statement(Statement::Print(Box::new(expr_node))))
+            Ok(AstNode::Statement(Box::new(Statement::Print(Box::new(expr_node)))))
         }
         Rule::assignment => {
             let mut inner_rules = specific_statement_pair.into_inner();
@@ -485,11 +485,11 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                 _ => return Err(format!("Unknown assignment operator: {}", op_str)),
             };
             let value_expr = build_ast_from_expression(inner_rules.next().unwrap())?;
-            Ok(AstNode::Statement(Statement::Assignment {
+            Ok(AstNode::Statement(Box::new(Statement::Assignment {
                 name,
                 operator,
                 value: Box::new(value_expr),
-            }))
+            })))
         }        Rule::if_statement => {
             let mut inner_rules = specific_statement_pair.into_inner(); // condition, block, elif_clause*, else_clause?
             let condition_expr = build_ast_from_expression(inner_rules.next().unwrap())?;
@@ -527,12 +527,12 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                 } else { None }
             } else { None };
 
-            Ok(AstNode::Statement(Statement::If {
+            Ok(AstNode::Statement(Box::new(Statement::If {
                 condition: Box::new(condition_expr),
                 then_body,
                 elifs,
                 else_body,
-            }))
+            })))
         }        Rule::while_statement => {
             let mut inner_rules = specific_statement_pair.into_inner(); // condition, block
             let condition_expr = build_ast_from_expression(inner_rules.next().unwrap())?;
@@ -541,10 +541,10 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
             let body = block_pair.into_inner()
                             .filter(|p| p.as_rule() == Rule::statement)
                             .map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
-            Ok(AstNode::Statement(Statement::While {
+            Ok(AstNode::Statement(Box::new(Statement::While {
                 condition: Box::new(condition_expr),
                 body,
-            }))
+            })))
         }        Rule::for_statement => {
             let mut inner_rules = specific_statement_pair.into_inner(); // for_target, expression, block
             let target_pair = inner_rules.next().unwrap();
@@ -555,11 +555,11 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
             let body = block_pair.into_inner()
                             .filter(|p| p.as_rule() == Rule::statement)
                             .map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
-            Ok(AstNode::Statement(Statement::For {
+            Ok(AstNode::Statement(Box::new(Statement::For {
                 vars,
                 iterable: Box::new(iterable_expr),
                 body,
-            }))
+            })))
         }Rule::function_definition => {
             // specific_statement_pair is Rule::function_definition
             let mut func_def_inner = specific_statement_pair.into_inner(); // decorator*, def, identifier, parameter_list?, block
@@ -596,28 +596,26 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
             let body = block_pair.into_inner()
                             .filter(|p| p.as_rule() == Rule::statement || p.as_rule() == Rule::function_definition) // Allow nested functions
                             .map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
-            Ok(AstNode::Statement(Statement::FunctionDef {
+            Ok(AstNode::Statement(Box::new(Statement::FunctionDef {
                 name,
                 params,
                 body,
                 decorators,
-            }))
+            })))
         }
         Rule::class_definition => {
             let mut class_def_inner = specific_statement_pair.into_inner(); // identifier, optional expression (base class), block
 
             let name_pair = class_def_inner.next().ok_or("Class definition missing name")?;
             if name_pair.as_rule() != Rule::identifier {
-                 return Err(format!("Expected identifier for class name, got {:?} ('{}')", name_pair.as_rule(), name_pair.as_str()));
+                return Err(format!("Expected identifier for class name, got {:?}", name_pair.as_rule()));
             }
             let name = name_pair.as_str().to_string();
 
             let mut base_class_expr: Option<Box<Expression>> = None;
             if let Some(peeked_pair) = class_def_inner.peek() {
-                // The grammar `("(" ~ expression ~ ")")?` means the expression is directly the next rule if present.
-                // The parentheses are part of the optional group but not separate rules we need to step into here.
-                if peeked_pair.as_rule() == Rule::expression {
-                    let expr_pair = class_def_inner.next().unwrap(); // Consume the expression
+                if peeked_pair.as_rule() != Rule::block {
+                    let expr_pair = class_def_inner.next().unwrap();
                     base_class_expr = Some(Box::new(build_ast_from_expression(expr_pair)?));
                 }
             }
@@ -631,11 +629,11 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                                 .filter(|p| p.as_rule() == Rule::statement || p.as_rule() == Rule::function_definition || p.as_rule() == Rule::class_definition)
                                 .map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
 
-            Ok(AstNode::Statement(Statement::ClassDef {
+            Ok(AstNode::Statement(Box::new(Statement::ClassDef {
                 name,
                 base_class: base_class_expr,
                 body,
-            }))
+            })))
         }
         Rule::return_statement => {
             let mut inner_rules = specific_statement_pair.into_inner();
@@ -644,16 +642,16 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
             } else {
                 None
             };
-            Ok(AstNode::Statement(Statement::Return(expr)))
+            Ok(AstNode::Statement(Box::new(Statement::Return(expr))))
         }
         Rule::expression_statement => {
             let expr_pair = specific_statement_pair.into_inner().next().ok_or_else(|| "Expression statement missing expression".to_string())?;
             let expr_node = build_ast_from_expression(expr_pair)?;
-            Ok(AstNode::Statement(Statement::ExpressionStatement(Box::new(expr_node))))
+            Ok(AstNode::Statement(Box::new(Statement::ExpressionStatement(Box::new(expr_node)))))
         }
-        Rule::break_statement => Ok(AstNode::Statement(Statement::Break)),
-        Rule::continue_statement => Ok(AstNode::Statement(Statement::Continue)),
-        Rule::pass_statement => Ok(AstNode::Statement(Statement::Pass)),
+        Rule::break_statement => Ok(AstNode::Statement(Box::new(Statement::Break))),
+        Rule::continue_statement => Ok(AstNode::Statement(Box::new(Statement::Continue))),
+        Rule::pass_statement => Ok(AstNode::Statement(Box::new(Statement::Pass))),
         _ => Err(format!(
             "Unhandled specific statement rule: {:?}\nContent: '{}'",
             specific_statement_pair.as_rule(),
