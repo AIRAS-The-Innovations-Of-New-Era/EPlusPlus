@@ -1,0 +1,10 @@
+# Minimal class definition for E++ parser test
+class MyClass {
+    pass
+}
+
+class Derived(Base) {
+    pass
+}
+
+print("Class parsing test done.")

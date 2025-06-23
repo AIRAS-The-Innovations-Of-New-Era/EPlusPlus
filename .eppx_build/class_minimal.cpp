@@ -197,8 +197,13 @@ std::string eppx_input(const std::string& prompt = "") {
 
 template<typename T> std::unordered_set<T> eppx_internal_make_frozenset(const std::vector<T>& initial_elements) { return std::unordered_set<T>(initial_elements.begin(), initial_elements.end()); }
 
+struct MyClass {
+};
+
+struct Derived {
+};
+
 int main() {
-    eppx_print(std::string("Hello, E++ World!"));
-    eppx_print(std::string("This is E++ running natively!"));
+    eppx_print(std::string("Class parsing test done."));
     return 0;
 }
