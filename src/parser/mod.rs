@@ -455,6 +455,7 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
             })?
         }
         Rule::function_definition => pair, // function_definition is processed directly by its own structure
+        Rule::class_definition => pair, // class_definition is processed directly
         _ => return Err(format!("build_ast_from_statement called with unexpected rule: {:?}. Content: '{}'", pair.as_rule(), pair.as_str())),
     };
 
@@ -620,6 +621,27 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
         Rule::break_statement => Ok(AstNode::Statement(Statement::Break)),
         Rule::continue_statement => Ok(AstNode::Statement(Statement::Continue)),
         Rule::pass_statement => Ok(AstNode::Statement(Statement::Pass)),
+        Rule::class_definition => {
+            // specific_statement_pair is Rule::class_definition
+            let mut class_def_inner = specific_statement_pair.into_inner();
+            let name = class_def_inner.next().unwrap().as_str().to_string();
+            // Optionally parse base class (not used yet)
+            let mut maybe_base = None;
+            if let Some(peeked) = class_def_inner.peek() {
+                if peeked.as_rule() == Rule::identifier {
+                    maybe_base = Some(class_def_inner.next().unwrap().as_str().to_string());
+                }
+            }
+            let block_pair = class_def_inner.next().ok_or_else(|| format!("Class '{}' missing block.", name))?;
+            if block_pair.as_rule() != Rule::block { return Err(format!("Class '{}' expected block, got {:?}.", name, block_pair.as_rule())); }
+            let body = block_pair.into_inner()
+                .filter(|p| p.as_rule() == Rule::statement)
+                .map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
+            Ok(AstNode::Statement(Statement::ClassDef {
+                name,
+                body,
+            }))
+        }
         _ => Err(format!(
             "Unhandled specific statement rule: {:?}\nContent: '{}'",
             specific_statement_pair.as_rule(),
@@ -641,7 +663,7 @@ pub fn parse_eppx_string(input: &str) -> Result<Vec<AstNode>, String> {
             // Iterate over the inner pairs of the program rule
             for pair in program_pair.into_inner() {
                 match pair.as_rule() {
-                    Rule::statement | Rule::function_definition => {
+                    Rule::statement | Rule::function_definition | Rule::class_definition => {
                         ast_nodes.push(build_ast_from_statement(pair)?);
                     }
                     Rule::COMMENT | Rule::WHITESPACE => {
