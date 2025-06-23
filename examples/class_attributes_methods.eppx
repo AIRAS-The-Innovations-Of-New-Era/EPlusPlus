@@ -1,0 +1,21 @@
+# E++ class with attributes, __init__, and methods
+def print_attrs(obj):
+    print(obj.x, obj.y)
+
+class Point:
+    x = 0
+    y = 0
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+    def move(self, dx, dy):
+        self.x = self.x + dx
+        self.y = self.y + dy
+    def __str__(self):
+        return "Point(" + str(self.x) + ", " + str(self.y) + ")"
+
+p = Point(3, 4)
+print_attrs(p)
+p.move(1, 2)
+print_attrs(p)
+print(p.__str__())

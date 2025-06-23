@@ -3,11 +3,12 @@ COMMENT = _{ ("//" ~ (!NEWLINE ~ ANY)*) | ("#" ~ (!NEWLINE ~ ANY)*) }
 
 program = { SOI ~ ( (statement | function_definition | class_definition) ~ (WHITESPACE* ~ COMMENT*) )* ~ EOI }
 
-statement = { assignment | print_statement | if_statement | while_statement | for_statement | function_definition | class_definition | return_statement | expression_statement | break_statement | continue_statement | pass_statement }
+statement = { assignment | print_statement | if_statement | while_statement | for_statement | return_statement | expression_statement | break_statement | continue_statement | pass_statement }
 expression_statement = { expression }
 
 assignment_operator = @{ "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "//=" | "&=" | "|=" | "^=" | ">>=" | "<<=" }
-assignment = { identifier ~ assignment_operator ~ expression }
+assignment = { assign_target ~ assignment_operator ~ expression }
+assign_target = { identifier ~ ("." ~ identifier)* }
 
 print_statement = { "print" ~ "(" ~ expression ~ ")" }
 
@@ -23,7 +24,12 @@ for_statement = { "for" ~ for_target ~ "in" ~ expression ~ block }
 for_target = { identifier | for_tuple_unpacking }
 for_tuple_unpacking = { identifier ~ ("," ~ identifier)+ }
 
-block = { "{" ~ statement* ~ "}" }
+NEWLINE = _{ "\r"? ~ "\n" }
+INDENT = { "@INDENT@" }
+DEDENT = { "@DEDENT@" }
+
+block = { (WHITESPACE* ~ COMMENT*)? ~ INDENT ~ indented_statements ~ DEDENT | (WHITESPACE* ~ COMMENT*)? ~ INDENT ~ DEDENT }
+indented_statements = { (statement | function_definition | class_definition)+ }
 
 expression = _{ logical_or }
 
@@ -86,8 +92,9 @@ atom = {
     "(" ~ expression ~ ")"
 }
 
-factor = { atom ~ call_suffix* }
+factor = { atom ~ (call_suffix | attr_access)* }
 call_suffix = { "(" ~ argument_list? ~ ")" }
+attr_access = { "." ~ identifier }
 lambda_expression = { "lambda" ~ parameter_list? ~ ":" ~ expression }
 argument_list = { argument ~ ("," ~ argument)* }
 argument = { keyword_argument | expression }
@@ -100,10 +107,9 @@ none_literal = @{ "None" } // Added for None
 double_quoted_char = { escape_sequence | !("\"" | "\\") ~ ANY }
 single_quoted_char = { escape_sequence | !("'" | "\\") ~ ANY }
 escape_sequence = { "\\" ~ ("n" | "t" | "r" | "b" | "f" | "v" | "0" | "\\" | "\"" | "'" | "a") }
-identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
-NEWLINE = _{ "\r"? ~ "\n" }
+identifier = @{ !("def" | "class" | "if" | "else" | "elif" | "while" | "for" | "return" | "break" | "continue" | "pass" | "and" | "or" | "not" | "in" | "is" | "None" | "True" | "False" | "lambda") ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 
-function_definition = { decorator* ~ "def" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ block }
+function_definition = { decorator* ~ "def" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ block }
 parameter_list = { identifier ~ ("," ~ identifier)* }
 
 decorator = { "@" ~ decorator_name ~ decorator_args? }
@@ -124,4 +130,4 @@ set_literal = { "{" ~ expression ~ ("," ~ expression)* ~ "}" }
 frozenset_literal = { "frozenset" ~ "(" ~ list_literal ~ ")" }
 complex_literal = { "complex" ~ "(" ~ expression ~ "," ~ expression ~ ")" }
 
-class_definition = { "class" ~ identifier ~ ("(" ~ identifier ~ ")")? ~ block }
+class_definition = { "class" ~ identifier ~ ("(" ~ identifier ~ ")")? ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ block }

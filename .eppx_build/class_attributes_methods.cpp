@@ -177,8 +177,32 @@ std::string eppx_input(const std::string& prompt = "") {
     std::getline(std::cin, result);
     return result;
 }
+template<typename T0>
+auto print_attrs(T0 obj) {
+        eppx_print(obj.x, obj.y);
+    return 0; // Default return if none explicit
+}
+
+struct Point {
+    long long x = 0LL;
+    long long y = 0LL;
+    void move(long long dx, long long dy) {
+        this->x = this->x + dx;
+        this->y = this->y + dy;
+    }
+    std::string __str__() {
+        return std::string("Point(") + std::to_string(this->x) + std::string(", ") + std::to_string(this->y) + std::string(")");
+    }
+    Point(long long x, long long y) {
+        this->x = x;
+        this->y = y;
+    }
+};
 int main() {
-    eppx_print(std::string("Hello, E++ World!"));
-    eppx_print(std::string("This is E++ running natively!"));
+    auto p = Point(3LL, 4LL);
+    print_attrs(p);
+    p.move(1LL, 2LL);
+    print_attrs(p);
+    eppx_print(p.__str__());
     return 0;
 }

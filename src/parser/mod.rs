@@ -44,6 +44,43 @@ fn process_escape_sequences(input: &str) -> Result<String, String> {
     Ok(result)
 }
 
+/// Preprocesses Python-style indentation into explicit @INDENT@ and @DEDENT@ tokens for the parser.
+pub fn preprocess_indentation(input: &str) -> String {
+    let mut result = String::new();
+    let mut indent_stack: Vec<usize> = vec![0];
+    for line in input.lines() {
+        let trimmed = line.trim_end();
+        let is_blank_or_comment = trimmed.is_empty() || trimmed.starts_with('#');
+        let indent = line.chars().take_while(|c| *c == ' ' || *c == '\t').count();
+        let current_indent = *indent_stack.last().unwrap();
+        if is_blank_or_comment {
+            result.push_str(line);
+            result.push('\n');
+            continue;
+        }
+        if indent > current_indent {
+            if !result.ends_with('\n') {
+                result.push('\n');
+            }
+            indent_stack.push(indent);
+            result.push_str("@INDENT@\n");
+        } else if indent < current_indent {
+            while indent < *indent_stack.last().unwrap() {
+                indent_stack.pop();
+                result.push_str("@DEDENT@\n");
+            }
+        }
+        result.push_str(line.trim_start());
+        result.push('\n');
+    }
+    // Close any remaining indents
+    while indent_stack.len() > 1 {
+        indent_stack.pop();
+        result.push_str("@DEDENT@\n");
+    }
+    result
+}
+
 // Renamed from parse_bin_op_recursive
 fn build_recursive_ast_from_binary_expr_rule(
     mut pairs: Pairs<Rule>, // Make it mutable
@@ -104,57 +141,72 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
 
             // The first part of a factor must be an atom.
             // The atom_pair itself will have a rule like Rule::atom.
-            let mut current_expr = build_ast_from_expression(atom_pair)?;            // Process potential call suffixes: call_suffix*
-            let remaining_pairs: Vec<_> = inner_pairs.collect();            for call_suffix_pair in remaining_pairs {
-                let mut args = Vec::new();
-                // call_suffix_pair.into_inner() gives what's inside the parentheses.
-                for inner_pair in call_suffix_pair.into_inner() {
-                    if inner_pair.as_rule() == Rule::argument_list {
-                        // argument_list = { argument ~ ("," ~ argument)* }
-                        // argument = { keyword_argument | expression }
-                        for arg_pair in inner_pair.into_inner() {
-                            match arg_pair.as_rule() {
-                                Rule::argument => {
-                                    // Parse the argument content
-                                    let arg_content = arg_pair.into_inner().next().ok_or("Empty argument")?;
-                                    if arg_content.as_rule() == Rule::keyword_argument {
-                                        // For function calls, we'll ignore keyword arguments for now
-                                        // and just parse the value part
-                                        let mut kw_inner = arg_content.into_inner();
-                                        let _name = kw_inner.next(); // Skip the name
-                                        let value_pair = kw_inner.next().ok_or("Keyword argument missing value")?;
-                                        args.push(build_ast_from_expression(value_pair)?);
-                                    } else {
-                                        // Regular expression argument
-                                        args.push(build_ast_from_expression(arg_content)?);
+            let mut current_expr = build_ast_from_expression(atom_pair)?;
+            // Process potential call suffixes and attribute access: (call_suffix | attr_access)*
+            let remaining_pairs: Vec<_> = inner_pairs.collect();
+            for suffix_pair in remaining_pairs {
+                match suffix_pair.as_rule() {
+                    Rule::call_suffix => {
+                        let mut args = Vec::new();
+                        // call_suffix_pair.into_inner() gives what's inside the parentheses.
+                        for inner_pair in suffix_pair.into_inner() {
+                            if inner_pair.as_rule() == Rule::argument_list {
+                                // argument_list = { argument ~ ("," ~ argument)* }
+                                // argument = { keyword_argument | expression }
+                                for arg_pair in inner_pair.into_inner() {
+                                    match arg_pair.as_rule() {
+                                        Rule::argument => {
+                                            // Parse the argument content
+                                            let arg_content = arg_pair.into_inner().next().ok_or("Empty argument")?;
+                                            if arg_content.as_rule() == Rule::keyword_argument {
+                                                // For function calls, we'll ignore keyword arguments for now
+                                                // and just parse the value part
+                                                let mut kw_inner = arg_content.into_inner();
+                                                let _name = kw_inner.next(); // Skip the name
+                                                let value_pair = kw_inner.next().ok_or("Keyword argument missing value")?;
+                                                args.push(build_ast_from_expression(value_pair)?);
+                                            } else {
+                                                // Regular expression argument
+                                                args.push(build_ast_from_expression(arg_content)?);
+                                            }
+                                        }
+                                        _ => {
+                                            // Direct expression (fallback for old grammar compatibility)
+                                            args.push(build_ast_from_expression(arg_pair)?);
+                                        }
                                     }
                                 }
-                                _ => {
-                                    // Direct expression (fallback for old grammar compatibility)
-                                    args.push(build_ast_from_expression(arg_pair)?);
-                                }
+                            } else if matches!(inner_pair.as_rule(), Rule::logical_or | Rule::expression) {
+                                // Single argument case - the grammar might produce a direct expression instead of argument_list
+                                args.push(build_ast_from_expression(inner_pair)?);
+                            } else {
+                                // This case implies that there was something between the parentheses,
+                                // but it wasn't an argument_list or expression. This would be a grammar mismatch.
+                                return Err(format!(
+                                    "Expected Rule::argument_list inside call suffix, found {:?} with content '{}'",
+                                    inner_pair.as_rule(),
+                                    inner_pair.as_str()
+                                ));
                             }
                         }
-                    } else if matches!(inner_pair.as_rule(), Rule::logical_or | Rule::expression) {
-                        // Single argument case - the grammar might produce a direct expression instead of argument_list
-                        args.push(build_ast_from_expression(inner_pair)?);
-                    } else {
-                        // This case implies that there was something between the parentheses,
-                        // but it wasn't an argument_list or expression. This would be a grammar mismatch.
-                        return Err(format!(
-                            "Expected Rule::argument_list inside call suffix, found {:?} with content '{}'",
-                            inner_pair.as_rule(),
-                            inner_pair.as_str()
-                        ));
-                    }
-                }
-                // If call_suffix_pair.into_inner().next() is None, it means empty parentheses `()`,
-                // so args remains empty, which is correct.
+                        // If call_suffix_pair.into_inner().next() is None, it means empty parentheses `()`,
+                        // so args remains empty, which is correct.
 
-                current_expr = Expression::Call {
-                    callee: Box::new(current_expr),
-                    args,
-                };
+                        current_expr = Expression::Call {
+                            callee: Box::new(current_expr),
+                            args,
+                        };
+                    }
+                    Rule::attr_access => {
+                        // attr_access = { "." ~ identifier }
+                        let attr_name = suffix_pair.into_inner().next().ok_or("Missing attribute name")?;
+                        current_expr = Expression::AttributeAccess {
+                            object: Box::new(current_expr),
+                            attr: attr_name.as_str().to_string(),
+                        };
+                    }
+                    _ => return Err(format!("Unexpected suffix rule: {:?}", suffix_pair.as_rule())),
+                }
             }
             Ok(current_expr)
         }
@@ -370,6 +422,28 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
         _ => Err(format!("Unhandled expression rule: {:?}\nContent: '{}'", pair.as_rule(), pair.as_str())),    }
 }
 
+// Helper to build assign_target (identifier or attribute chain) as Expression
+fn build_ast_from_assign_target(pair: Pair<Rule>) -> Result<Expression, String> {
+    match pair.as_rule() {
+        Rule::identifier => {
+            Ok(Expression::Identifier(pair.as_str().to_string()))
+        }
+        // Support attribute chains: identifier ('.' identifier)*
+        Rule::assign_target => {
+            let mut inner = pair.into_inner();
+            let mut expr = Expression::Identifier(inner.next().unwrap().as_str().to_string());
+            for attr in inner {
+                expr = Expression::AttributeAccess {
+                    object: Box::new(expr),
+                    attr: attr.as_str().to_string(),
+                };
+            }
+            Ok(expr)
+        }
+        _ => Err(format!("Invalid assign_target: {:?}", pair.as_rule())),
+    }
+}
+
 // Function to parse for loop targets (single variable or tuple unpacking)
 fn parse_for_target(pair: Pair<Rule>) -> Result<Vec<String>, String> {
     match pair.as_rule() {
@@ -467,7 +541,9 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
         }
         Rule::assignment => {
             let mut inner_rules = specific_statement_pair.into_inner();
-            let name = inner_rules.next().unwrap().as_str().to_string();
+            // Parse assign_target as an expression (attribute chain or identifier)
+            let lhs_pair = inner_rules.next().unwrap();
+            let target_expr = build_ast_from_assign_target(lhs_pair)?;
             let op_str = inner_rules.next().unwrap().as_str();
             let operator = match op_str {
                 "=" => AssignmentOperator::Assign,
@@ -487,7 +563,7 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
             };
             let value_expr = build_ast_from_expression(inner_rules.next().unwrap())?;
             Ok(AstNode::Statement(Statement::Assignment {
-                name,
+                target: Box::new(target_expr),
                 operator,
                 value: Box::new(value_expr),
             }))
@@ -594,9 +670,23 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
             
             let block_pair = func_def_inner.next().ok_or_else(|| format!("Function '{}' missing block.", name))?;
             if block_pair.as_rule() != Rule::block { return Err(format!("Function '{}' expected block, got {:?}.", name, block_pair.as_rule())); }
-            let body = block_pair.into_inner()
-                            .filter(|p| p.as_rule() == Rule::statement)
-                            .map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
+            // Parse function body, handling indented_statements like class bodies
+            let mut body = Vec::new();
+            for inner_pair in block_pair.into_inner() {
+                match inner_pair.as_rule() {
+                    Rule::indented_statements => {
+                        for stmt_pair in inner_pair.into_inner() {
+                            if matches!(stmt_pair.as_rule(), Rule::statement | Rule::function_definition | Rule::class_definition) {
+                                body.push(build_ast_from_statement(stmt_pair)?);
+                            }
+                        }
+                    }
+                    Rule::statement | Rule::function_definition | Rule::class_definition => {
+                        body.push(build_ast_from_statement(inner_pair)?);
+                    }
+                    _ => { /* Skip INDENT, DEDENT, WHITESPACE, COMMENT */ }
+                }
+            }
             Ok(AstNode::Statement(Statement::FunctionDef {
                 name,
                 params,
@@ -631,12 +721,29 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                 if peeked.as_rule() == Rule::identifier {
                     maybe_base = Some(class_def_inner.next().unwrap().as_str().to_string());
                 }
-            }
-            let block_pair = class_def_inner.next().ok_or_else(|| format!("Class '{}' missing block.", name))?;
+            }            let block_pair = class_def_inner.next().ok_or_else(|| format!("Class '{}' missing block.", name))?;
             if block_pair.as_rule() != Rule::block { return Err(format!("Class '{}' expected block, got {:?}.", name, block_pair.as_rule())); }
-            let body = block_pair.into_inner()
-                .filter(|p| p.as_rule() == Rule::statement)
-                .map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
+            
+            let mut body = Vec::new();
+            for inner_pair in block_pair.into_inner() {
+                match inner_pair.as_rule() {
+                    Rule::indented_statements => {
+                        // Parse all statements/function_definitions/class_definitions inside indented_statements
+                        for stmt_pair in inner_pair.into_inner() {
+                            if matches!(stmt_pair.as_rule(), Rule::statement | Rule::function_definition | Rule::class_definition) {
+                                body.push(build_ast_from_statement(stmt_pair)?);
+                            }
+                        }
+                    }
+                    Rule::statement | Rule::function_definition | Rule::class_definition => {
+                        // Direct statement (fallback)
+                        body.push(build_ast_from_statement(inner_pair)?);
+                    }
+                    _ => {
+                        // Skip INDENT, DEDENT, WHITESPACE, COMMENT
+                    }
+                }
+            }
             Ok(AstNode::Statement(Statement::ClassDef {
                 name,
                 body,
@@ -652,7 +759,9 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
 
 // Renamed from parse_eppx_string_final
 pub fn parse_eppx_string(input: &str) -> Result<Vec<AstNode>, String> {
-    match EppParser::parse(Rule::program, input) {
+    let preprocessed = preprocess_indentation(input);
+    
+    match EppParser::parse(Rule::program, &preprocessed) {
         Ok(mut pairs) => {
             let program_pair = pairs.next().ok_or_else(|| "Empty program".to_string())?;
             if program_pair.as_rule() != Rule::program {
