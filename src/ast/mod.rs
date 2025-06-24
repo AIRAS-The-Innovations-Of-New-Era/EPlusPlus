@@ -10,7 +10,7 @@ pub enum AstNode {
 pub enum Statement {
     Print(Box<Expression>),
     Assignment {
-        name: String,
+        target: Box<Expression>, // Changed from name: String to target: Box<Expression>
         operator: AssignmentOperator, // Changed from direct value to include operator
         value: Box<Expression>,
     },
@@ -40,7 +40,7 @@ pub enum Statement {
     #[allow(dead_code)] // Allowed because it's a planned feature
     ClassDef {
         name: String,
-        body: Vec<AstNode>, // Simplified: can contain assignments (members) or defs (methods)
+        body: Vec<AstNode>, // Contains assignments (attributes) and function definitions (methods, including __init__)
     },
 }
 
@@ -120,6 +120,10 @@ pub enum Expression {
     Call {
         callee: Box<Expression>,
         args: Vec<Expression>,
+    },
+    AttributeAccess {
+        object: Box<Expression>,
+        attr: String,
     },
 }
 

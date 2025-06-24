@@ -9,3 +9,5 @@ Cargo.lock
 *.tmp
 *.pyc
 __pycache__/
+.eppx_build/*
+!.eppx_build/.keep
