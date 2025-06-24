@@ -40,6 +40,7 @@ pub enum Statement {
     #[allow(dead_code)] // Allowed because it's a planned feature
     ClassDef {
         name: String,
+        base: Option<String>, // Optional base class name for inheritance
         body: Vec<AstNode>, // Contains assignments (attributes) and function definitions (methods, including __init__)
     },
 }

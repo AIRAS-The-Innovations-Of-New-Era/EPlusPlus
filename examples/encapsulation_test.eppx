@@ -1,0 +1,12 @@
+# Test: Encapsulation (public/private attributes)
+class Secret:
+    def __init__(self, value):
+        self._hidden = value  # conventionally private
+        self.visible = value * 2
+    def get_hidden(self):
+        return self._hidden
+
+s = Secret(42)
+print(s.visible)      # 84
+print(s.get_hidden()) # 42
+# print(s._hidden)    # Should not be accessed directly (by convention)

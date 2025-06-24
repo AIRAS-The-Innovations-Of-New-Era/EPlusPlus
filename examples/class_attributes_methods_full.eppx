@@ -1,0 +1,18 @@
+# Test: Class attributes, instance attributes, and methods
+class Counter:
+    count = 0  # class attribute
+    def __init__(self, start):
+        self.value = start  # instance attribute
+        Counter.count = Counter.count + 1
+    def inc(self):
+        self.value = self.value + 1
+    def get(self):
+        return self.value
+
+c1 = Counter(10)
+c2 = Counter(20)
+print(c1.get())  # 10
+print(c2.get())  # 20
+c1.inc()
+print(c1.get())  # 11
+print(Counter.count)  # 2

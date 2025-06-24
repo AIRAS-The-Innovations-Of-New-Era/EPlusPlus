@@ -636,10 +636,12 @@ fn _generate_cpp_code_with_vars(
 
 ");
             }
-            AstNode::Statement(Statement::ClassDef { name, body }) => {
-                cpp_out.push_str(&format!("struct {} {{
-",
- name));
+            AstNode::Statement(Statement::ClassDef { name, base, body }) => {
+                if let Some(base_name) = base {
+                    cpp_out.push_str(&format!("struct {} : public {} {{\n", name, base_name));
+                } else {
+                    cpp_out.push_str(&format!("struct {} {{\n", name));
+                }
                 // First pass: collect attributes (assignments) and methods
                 let mut constructor_params: Vec<String> = Vec::new();
                 let mut constructor_body: String = String::new();
@@ -781,6 +783,12 @@ pub fn emit_expression_cpp(
             if let Expression::Identifier(name) = &**object {
                 if name == "self" {
                     return Ok(format!("this->{}", attr));
+                }
+                // Class attribute access: ClassName.x
+                // If the identifier is a class name, emit ClassName::x
+                // (Assume class names are capitalized, variables are not)
+                if name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+                    return Ok(format!("{}::{}", name, attr));
                 }
             }
             let object_cpp = emit_expression_cpp(object, symbol_table, function_table, type_map)?;
@@ -1243,6 +1251,14 @@ fn emit_assignment_target_cpp(expr: &Expression) -> Result<String, String> {
     match expr {
         Expression::Identifier(name) => Ok(name.clone()),
         Expression::AttributeAccess { object, attr } => {
+            if let Expression::Identifier(name) = &**object {
+                if name == "self" {
+                    return Ok(format!("this->{}", attr));
+                }
+                if name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+                    return Ok(format!("{}::{}", name, attr));
+                }
+            }
             let obj_cpp = emit_assignment_target_cpp(object)?;
             Ok(format!("{}.{}", obj_cpp, attr))
         }

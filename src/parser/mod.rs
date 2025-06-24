@@ -746,6 +746,7 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
             }
             Ok(AstNode::Statement(Statement::ClassDef {
                 name,
+                base: maybe_base,
                 body,
             }))
         }
