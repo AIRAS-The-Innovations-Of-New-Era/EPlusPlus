@@ -207,9 +207,9 @@ This document tracks the implementation progress of Python syntax and features i
 
 **4. Classes and Objects (Object-Oriented Programming):**
 
-- [ ] `class` keyword
-- [ ] `__init__`
-- [ ] `self`
+- [x] `class` keyword
+- [x] `__init__` (Implemented: Python-style constructor in classes, with correct parsing and codegen)
+- [x] `self`
 - [ ] Attributes and Methods
 - [ ] Inheritance
 - [ ] Polymorphism
