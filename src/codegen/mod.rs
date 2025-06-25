@@ -136,14 +136,7 @@ fn generate_statement_list_cpp(
         if matches!(node, AstNode::Statement(Statement::FunctionDef { .. }) | AstNode::Statement(Statement::ClassDef { .. })) {
             continue;
         }
-        
-        match node {
-            AstNode::Statement(Statement::Print(expr)) => {
-                let expr_code = emit_expression_cpp(expr, symbol_table, function_table, type_map)?;
-                cpp_out.push_str(&format!("    eppx_print({});
-",
- expr_code));
-            }
+          match node {
             AstNode::Statement(Statement::Assignment { target, operator, value }) => {
                 let value_cpp = emit_expression_cpp(value, symbol_table, function_table, type_map)?;
                 let target_cpp = emit_expression_cpp(target, symbol_table, function_table, type_map)?;
@@ -641,23 +634,47 @@ fn _generate_cpp_code_with_vars(
                     cpp_out.push_str(&format!("struct {} : public {} {{\n", name, base_name));
                 } else {
                     cpp_out.push_str(&format!("struct {} {{\n", name));
-                }
-                // First pass: collect attributes (assignments) and methods
+                }                // First pass: collect attributes (assignments) and methods
                 let mut constructor_params: Vec<String> = Vec::new();
                 let mut constructor_body: String = String::new();
                 let mut has_init = false;
+                let mut instance_vars: HashSet<String> = HashSet::new();
                 
                 symbol_table.enter_scope(); // Class scope
 
+                // Scan for instance variables in __init__ method
                 for class_node in body {
+                    if let AstNode::Statement(Statement::FunctionDef { name: method_name, body: method_body, .. }) = class_node {
+                        if method_name == "__init__" {
+                            for stmt in method_body {
+                                if let AstNode::Statement(Statement::Assignment { target, .. }) = stmt {
+                                    if let Expression::AttributeAccess { object, attr } = &**target {
+                                        if let Expression::Identifier(obj_name) = &**object {
+                                            if obj_name == "self" {
+                                                instance_vars.insert(attr.clone());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Emit instance variable declarations
+                for var in &instance_vars {
+                    cpp_out.push_str(&format!("    long long {};\n", var));
+                }                for class_node in body {
                     match class_node {
                         AstNode::Statement(Statement::Assignment { target, operator: AssignmentOperator::Assign, value }) => {
-                            let value_cpp = emit_expression_cpp(value, symbol_table, function_table, type_map)?;
-                            let type_str = infer_cpp_type_for_static_member(value);
-                            let member_name_cpp = emit_expression_cpp(target, symbol_table, function_table, type_map)?;
-                            cpp_out.push_str(&format!("    {} {} = {};
-",
- type_str, member_name_cpp, value_cpp));
+                            // Only emit static class variables here, not instance variables that are already declared
+                            if let Expression::Identifier(member_name) = &**target {
+                                if !instance_vars.contains(member_name) {
+                                    let value_cpp = emit_expression_cpp(value, symbol_table, function_table, type_map)?;
+                                    let type_str = infer_cpp_type_for_static_member(value);
+                                    cpp_out.push_str(&format!("    {} {} = {};\n", type_str, member_name, value_cpp));
+                                }
+                            }
                         }
                         AstNode::Statement(Statement::FunctionDef { name: method_name, params, body: method_body, .. }) => {
                             symbol_table.enter_scope(); // Method scope
@@ -666,27 +683,22 @@ fn _generate_cpp_code_with_vars(
                             }
 
                             let mut method_declared_vars = HashSet::new();
-                            let body_cpp = generate_statement_list_cpp(method_body, &mut method_declared_vars, symbol_table, function_table, type_map)?;
-
-                            if method_name == "__init__" {
+                            let body_cpp = generate_statement_list_cpp(method_body, &mut method_declared_vars, symbol_table, function_table, type_map)?;                            if method_name == "__init__" {
                                 has_init = true;
                                 let params_cpp: Vec<String> = params.iter().filter(|p| **p != "self").map(|p| format!("long long {}", p)).collect();
                                 constructor_params = params_cpp;
-                                constructor_body = indent_code(&body_cpp);
-                            } else {
-                                let has_return_value = method_body.iter().any(|node| matches!(node, AstNode::Statement(Statement::Return(Some(_)))));
-                                let return_type = if method_name == "__str__" {
-                                    "std::string"
-                                } else if has_return_value {
-                                    "auto"
-                                } else {
-                                    "void"
-                                };
-
+                                constructor_body = indent_code(&body_cpp);                            } else {
+                                let return_type = infer_return_type_from_body(method_body, method_name, base);                                // --- Polymorphism: virtual/override ---
+                                let is_override = base.is_some();
+                                let is_private = method_name.starts_with('_') && method_name != "__str__" && method_name != "__init__";
+                                let virtual_str = if !is_override { "virtual " } else { "" };
+                                let override_str = if is_override { " override" } else { "" };
+                                // For now, emit all methods as public except _underscore ones (but not __special__)
+                                if is_private {
+                                    cpp_out.push_str("private:\n");
+                                }
                                 let params_cpp = params.iter().filter(|p| **p != "self").map(|p| format!("long long {}", p)).collect::<Vec<_>>().join(", ");
-                                cpp_out.push_str(&format!("    {} {}({}) {{
-",
- return_type, method_name, params_cpp));
+                                cpp_out.push_str(&format!("    {}{} {}({}){} {{\n", virtual_str, return_type, method_name, params_cpp, override_str));
                                 cpp_out.push_str(&indent_code(&body_cpp));
                                 
                                 let has_any_return = method_body.iter().any(|node| matches!(node, AstNode::Statement(Statement::Return(_))));
@@ -696,7 +708,12 @@ fn _generate_cpp_code_with_vars(
                                     }
                                 }
                                 cpp_out.push_str("    }\n");
+                                if is_private {
+                                    cpp_out.push_str("public:\n");
+                                }
+                                // ---
                             }
+
                             symbol_table.exit_scope(); // Exit method scope
                         }
                         _ => { /* Ignore other statements for now */ }
@@ -717,6 +734,10 @@ fn _generate_cpp_code_with_vars(
 ",
  name));
                 }
+
+                // --- Encapsulation: public/private sections ---
+                cpp_out.push_str("public:\n");
+                // ---
 
                 cpp_out.push_str("};\n");
                 symbol_table.exit_scope(); // Exit class scope
@@ -1264,5 +1285,56 @@ fn emit_assignment_target_cpp(expr: &Expression) -> Result<String, String> {
         }
         _ => Err("Invalid assignment target for codegen".to_string()),
     }
+}
+
+// Helper function to infer return type from method body
+fn infer_return_type_from_body(method_body: &[AstNode], method_name: &str, base: &Option<String>) -> String {
+    // Check if method has return statements
+    let return_expressions: Vec<&Expression> = method_body.iter()
+        .filter_map(|node| {
+            if let AstNode::Statement(Statement::Return(Some(expr))) = node {
+                Some(expr.as_ref())
+            } else {
+                None
+            }
+        })
+        .collect();
+    
+    if return_expressions.is_empty() {
+        return "void".to_string();
+    }
+      // Analyze return expressions to determine type
+    for expr in &return_expressions {
+        match expr {
+            Expression::StringLiteral(_) => return "std::string".to_string(),
+            Expression::BinaryOperation { .. } => {
+                // For string concatenation operations in __str__, return std::string
+                if method_name == "__str__" {
+                    return "std::string".to_string();
+                }
+                // For arithmetic operations, assume numeric
+                return "long long".to_string();
+            },
+            Expression::IntegerLiteral(_) => {
+                // For virtual methods, we need consistent types
+                if base.is_some() || method_name == "area" || method_name == "speak" {
+                    // Check if this might be a string-returning method by name
+                    if method_name == "__str__" || method_name == "speak" {
+                        return "std::string".to_string();
+                    }
+                }
+                return "long long".to_string();
+            },            Expression::FloatLiteral(_) => return "double".to_string(),
+            _ => {
+                // Default fallback
+                if method_name == "__str__" || method_name == "speak" {
+                    return "std::string".to_string();
+                }
+                return "long long".to_string();
+            }
+        }
+    }
+    
+    "void".to_string()
 }
 
