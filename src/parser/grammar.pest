@@ -1,14 +1,16 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
-COMMENT = _{ ("//" ~ (!NEWLINE ~ ANY)*) | ("#" ~ (!NEWLINE ~ ANY)*) }
+COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
 
 program = { SOI ~ ( (statement | function_definition | class_definition) ~ (WHITESPACE* ~ COMMENT*) )* ~ EOI }
 
-statement = { assignment | if_statement | while_statement | for_statement | return_statement | expression_statement | break_statement | continue_statement | pass_statement }
+statement = { assignment | print_statement | if_statement | while_statement | for_statement | function_definition | class_definition | return_statement | expression_statement | break_statement | continue_statement | pass_statement }
 expression_statement = { expression }
 
 assignment_operator = @{ "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "//=" | "&=" | "|=" | "^=" | ">>=" | "<<=" }
 assignment = { assign_target ~ assignment_operator ~ expression }
 assign_target = { identifier ~ ("." ~ identifier)* }
+
+print_statement = { "print" ~ "(" ~ expression ~ ")" }
 
 if_statement = { "if" ~ expression ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ block ~ elif_clause* ~ else_clause? }
 elif_clause = { "elif" ~ expression ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ block }
@@ -107,7 +109,7 @@ none_literal = @{ "None" } // Added for None
 double_quoted_char = { escape_sequence | !("\"" | "\\") ~ ANY }
 single_quoted_char = { escape_sequence | !("'" | "\\") ~ ANY }
 escape_sequence = { "\\" ~ ("n" | "t" | "r" | "b" | "f" | "v" | "0" | "\\" | "\"" | "'" | "a") }
-identifier = @{ !("def" | "class" | "if" | "else" | "elif" | "while" | "for" | "return" | "break" | "continue" | "pass" | "and" | "or" | "not" | "in" | "is" | "None" | "True" | "False" | "lambda") ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 
 function_definition = { decorator* ~ "def" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ block }
 parameter_list = { identifier ~ ("," ~ identifier)* }

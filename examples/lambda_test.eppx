@@ -12,9 +12,8 @@ get_msg = lambda: "Hello from lambda!"
 print(get_msg()) # Expected: Hello from lambda!
 
 # Lambda used as an argument (if function calls can take lambdas)
-def apply_func(f, val) {
+def apply_func(f, val):
     return f(val)
-}
 
 print(apply_func(lambda x: x * x, 9)) # Expected: 81
 

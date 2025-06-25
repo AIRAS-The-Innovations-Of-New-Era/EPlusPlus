@@ -31,7 +31,9 @@ pub enum Statement {
         params: Vec<String>,
         body: Vec<AstNode>,
         decorators: Vec<Decorator>, // Added decorators support
-    },    Return(Option<Box<Expression>>),
+    },
+    Print(Box<Expression>),
+    Return(Option<Box<Expression>>),
     ExpressionStatement(Box<Expression>), // Added for standalone expressions
     Break,                              // Added for break statements
     Continue,                           // Added for continue statements

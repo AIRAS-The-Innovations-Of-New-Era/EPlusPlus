@@ -539,7 +539,13 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
         _ => return Err(format!("build_ast_from_statement called with unexpected rule: {:?}. Content: '{}'", pair.as_rule(), pair.as_str())),
     };
 
-    match specific_statement_pair.as_rule() {        Rule::assignment => {
+    match specific_statement_pair.as_rule() {
+        Rule::print_statement => {
+            let expr_pair = specific_statement_pair.into_inner().next().ok_or_else(|| "Print statement missing expression".to_string())?;
+            let expr_node = build_ast_from_expression(expr_pair)?;
+            Ok(AstNode::Statement(Statement::Print(Box::new(expr_node))))
+        }
+        Rule::assignment => {
             let mut inner_rules = specific_statement_pair.into_inner();
             // Parse assign_target as an expression (attribute chain or identifier)
             let lhs_pair = inner_rules.next().unwrap();

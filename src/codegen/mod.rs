@@ -208,6 +208,15 @@ fn generate_statement_list_cpp(
                     }
                 }
             }
+            AstNode::Statement(Statement::Print(expr)) => {
+                let expr_cpp = emit_expression_cpp(expr, symbol_table, function_table, type_map)?;
+                // Add parentheses around binary operations to avoid precedence issues
+                let safe_expr = match &**expr {
+                    Expression::BinaryOperation { .. } => format!("({})", expr_cpp),
+                    _ => expr_cpp,
+                };
+                cpp_out.push_str(&format!("    std::cout << {} << std::endl;\n", safe_expr));
+            }
             AstNode::Statement(Statement::If { condition, then_body, elifs, else_body }) => {
                 let mut chain = String::new();
                 let emit_block = |stmts: &Vec<AstNode>, declared_vars: &mut HashSet<String>, symbol_table: &mut SymbolTable, function_table: &mut FunctionTable, type_map: &mut TypeMap| -> Result<String, String> {
@@ -374,7 +383,90 @@ fn _generate_cpp_code_with_vars(
 ");
         cpp_out.push_str("#include <functional> // For std::hash
 
-");        // Basic print functions - single argument versions
+");
+        // Type aliases for E++ types
+        cpp_out.push_str("using eppx_variant = std::string; // Simplified variant type for now\n");
+        cpp_out.push_str("\n");
+        
+        // Stream operators for C++ container types to enable printing
+        cpp_out.push_str("// Stream operators for container types\n");
+        cpp_out.push_str("template<typename T>\n");
+        cpp_out.push_str("std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec) {\n");
+        cpp_out.push_str("    os << \"[\";\n");
+        cpp_out.push_str("    for (size_t i = 0; i < vec.size(); ++i) {\n");
+        cpp_out.push_str("        if (i > 0) os << \", \";\n");
+        cpp_out.push_str("        os << vec[i];\n");
+        cpp_out.push_str("    }\n");
+        cpp_out.push_str("    return os << \"]\";\n");
+        cpp_out.push_str("}\n");
+        cpp_out.push_str("\n");
+        
+        cpp_out.push_str("template<typename K, typename V>\n");
+        cpp_out.push_str("std::ostream& operator<<(std::ostream& os, const std::map<K, V>& m) {\n");
+        cpp_out.push_str("    os << \"{\";\n");
+        cpp_out.push_str("    bool first = true;\n");
+        cpp_out.push_str("    for (const auto& pair : m) {\n");
+        cpp_out.push_str("        if (!first) os << \", \";\n");
+        cpp_out.push_str("        os << pair.first << \": \" << pair.second;\n");
+        cpp_out.push_str("        first = false;\n");
+        cpp_out.push_str("    }\n");
+        cpp_out.push_str("    return os << \"}\";\n");
+        cpp_out.push_str("}\n");
+        cpp_out.push_str("\n");
+        
+        cpp_out.push_str("template<typename T>\n");
+        cpp_out.push_str("std::ostream& operator<<(std::ostream& os, const std::set<T>& s) {\n");
+        cpp_out.push_str("    os << \"{\";\n");
+        cpp_out.push_str("    bool first = true;\n");
+        cpp_out.push_str("    for (const auto& item : s) {\n");
+        cpp_out.push_str("        if (!first) os << \", \";\n");
+        cpp_out.push_str("        os << item;\n");
+        cpp_out.push_str("        first = false;\n");
+        cpp_out.push_str("    }\n");
+        cpp_out.push_str("    return os << \"}\";\n");
+        cpp_out.push_str("}\n");
+        cpp_out.push_str("\n");
+        
+        cpp_out.push_str("template<typename T>\n");
+        cpp_out.push_str("std::ostream& operator<<(std::ostream& os, const std::unordered_set<T>& s) {\n");
+        cpp_out.push_str("    os << \"frozenset({\";\n");
+        cpp_out.push_str("    bool first = true;\n");
+        cpp_out.push_str("    for (const auto& item : s) {\n");
+        cpp_out.push_str("        if (!first) os << \", \";\n");
+        cpp_out.push_str("        os << item;\n");
+        cpp_out.push_str("        first = false;\n");
+        cpp_out.push_str("    }\n");
+        cpp_out.push_str("    return os << \"})\";\n");
+        cpp_out.push_str("}\n");
+        cpp_out.push_str("\n");
+        
+        cpp_out.push_str("template<typename T>\n");
+        cpp_out.push_str("std::ostream& operator<<(std::ostream& os, const std::complex<T>& c) {\n");
+        cpp_out.push_str("    return os << \"(\" << c.real() << (c.imag() >= 0 ? \"+\" : \"\") << c.imag() << \"j)\";\n");
+        cpp_out.push_str("}\n");
+        cpp_out.push_str("\n");
+        
+        // Tuple printing helper
+        cpp_out.push_str("template<typename Tuple, size_t... Is>\n");
+        cpp_out.push_str("void print_tuple_impl(std::ostream& os, const Tuple& t, std::index_sequence<Is...>) {\n");
+        cpp_out.push_str("    ((os << (Is == 0 ? \"\" : \", \") << std::get<Is>(t)), ...);\n");
+        cpp_out.push_str("}\n");
+        cpp_out.push_str("\n");
+        
+        cpp_out.push_str("template<typename... Args>\n");
+        cpp_out.push_str("std::ostream& operator<<(std::ostream& os, const std::tuple<Args...>& t) {\n");
+        cpp_out.push_str("    os << \"(\";\n");
+        cpp_out.push_str("    if constexpr (sizeof...(Args) > 0) {\n");
+        cpp_out.push_str("        print_tuple_impl(os, t, std::index_sequence_for<Args...>{});\n");
+        cpp_out.push_str("    }\n");
+        cpp_out.push_str("    if constexpr (sizeof...(Args) == 1) {\n");
+        cpp_out.push_str("        os << \",\";\n");
+        cpp_out.push_str("    }\n");
+        cpp_out.push_str("    return os << \")\";\n");
+        cpp_out.push_str("}\n");
+        cpp_out.push_str("\n");
+        
+        // Basic print functions - single argument versions
         cpp_out.push_str("void eppx_print(const std::string& s) { std::cout << s << std::endl; }
 ");
         cpp_out.push_str("void eppx_print(long long x) { std::cout << x << std::endl; }
@@ -639,6 +731,7 @@ fn _generate_cpp_code_with_vars(
                 let mut constructor_body: String = String::new();
                 let mut has_init = false;
                 let mut instance_vars: HashSet<String> = HashSet::new();
+                let mut static_vars: Vec<(String, String, String)> = Vec::new(); // (name, type, value)
                 
                 symbol_table.enter_scope(); // Class scope
 
@@ -667,12 +760,15 @@ fn _generate_cpp_code_with_vars(
                 }                for class_node in body {
                     match class_node {
                         AstNode::Statement(Statement::Assignment { target, operator: AssignmentOperator::Assign, value }) => {
-                            // Only emit static class variables here, not instance variables that are already declared
+                            // Collect static class variables
                             if let Expression::Identifier(member_name) = &**target {
                                 if !instance_vars.contains(member_name) {
                                     let value_cpp = emit_expression_cpp(value, symbol_table, function_table, type_map)?;
                                     let type_str = infer_cpp_type_for_static_member(value);
-                                    cpp_out.push_str(&format!("    {} {} = {};\n", type_str, member_name, value_cpp));
+                                    // Emit static declaration
+                                    cpp_out.push_str(&format!("    static {} {};\n", type_str, member_name));
+                                    // Store for later definition
+                                    static_vars.push((member_name.clone(), type_str, value_cpp));
                                 }
                             }
                         }
@@ -740,6 +836,12 @@ fn _generate_cpp_code_with_vars(
                 // ---
 
                 cpp_out.push_str("};\n");
+                
+                // Define static class variables outside the class
+                for (var_name, var_type, var_value) in static_vars {
+                    cpp_out.push_str(&format!("{} {}::{} = {};\n", var_type, name, var_name, var_value));
+                }
+                
                 symbol_table.exit_scope(); // Exit class scope
             }
             _ => {} // Other statement types are handled in the second pass (for main's body)

@@ -1,17 +1,13 @@
 # Test for break, continue, and pass in E++
 
 i = 0
-while i < 10 {
+while i < 10:
     i += 1
-    if i == 3 {
+    if i == 3:
         pass
-    }
-    if i == 5 {
+    if i == 5:
         continue
-    }
-    if i == 8 {
+    if i == 8:
         break
-    }
     print(i)
-}
 print("done")

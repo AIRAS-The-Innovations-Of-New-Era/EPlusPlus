@@ -1,4 +1,3 @@
 names = ["Alice", "Bob"]
-for name in names {
+for name in names:
     print(name)
-}

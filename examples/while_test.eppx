@@ -1,31 +1,28 @@
 # While loop test for E++
 # Basic counting loop
 i = 0
-while i < 5 {
+while i < 5:
     print("Loop iteration:")
     print(i)
     i += 1
-}
 
 print("Loop completed")
 
 # Another while loop - counting down
 countdown = 10
-while countdown > 0 {
+while countdown > 0:
     print("Countdown:")
     print(countdown)
     countdown -= 1
-}
 
 print("Blast off!")
 
 # While loop with more complex condition
 x = 1
 y = 100
-while x < y and x < 50 {
+while x < y and x < 50:
     print("x is now:")
     print(x)
     x *= 2
-}
 
 print("While loop tests complete.")
