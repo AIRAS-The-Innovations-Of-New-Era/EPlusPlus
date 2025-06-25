@@ -2,23 +2,19 @@
 
 # Basic for loop with range
 print("Testing basic for loop:")
-for i in range(5) {
+for i in range(5):
     print(i)
-}
 
 print("Testing for loop with assignment inside:")
 total = 0
-for num in range(10) {
+for num in range(10):
     total += num
-}
 print(total)
 
 print("Testing nested for loops:")
-for i in range(3) {
-    for j in range(2) {
+for i in range(3):
+    for j in range(2):
         result = i * 10 + j
         print(result)
-    }
-}
 
 print("For loop test completed!")

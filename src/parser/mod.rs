@@ -48,31 +48,39 @@ fn process_escape_sequences(input: &str) -> Result<String, String> {
 pub fn preprocess_indentation(input: &str) -> String {
     let mut result = String::new();
     let mut indent_stack: Vec<usize> = vec![0];
+    
     for line in input.lines() {
-        let trimmed = line.trim_end();
+        let trimmed = line.trim(); // Trim both sides to correctly identify blank lines or comments
         let is_blank_or_comment = trimmed.is_empty() || trimmed.starts_with('#');
-        let indent = line.chars().take_while(|c| *c == ' ' || *c == '\t').count();
-        let current_indent = *indent_stack.last().unwrap();
+        
         if is_blank_or_comment {
             result.push_str(line);
             result.push('\n');
             continue;
         }
+        
+        let indent = line.chars().take_while(|c| *c == ' ' || *c == '\t').count();
+        let current_indent = *indent_stack.last().unwrap();
+        
         if indent > current_indent {
-            if !result.ends_with('\n') {
-                result.push('\n');
-            }
+            // Indentation increased
             indent_stack.push(indent);
-            result.push_str("@INDENT@\n");
+            result.push_str("@INDENT@
+");
         } else if indent < current_indent {
+            // Indentation decreased - emit DEDENT tokens for each level we're backing out
             while indent < *indent_stack.last().unwrap() {
                 indent_stack.pop();
-                result.push_str("@DEDENT@\n");
+                result.push_str("@DEDENT@
+");
             }
         }
+        // If indent == current_indent, we stay at the same level
+        
         result.push_str(line.trim_start());
         result.push('\n');
     }
+    
     // Close any remaining indents
     while indent_stack.len() > 1 {
         indent_stack.pop();
@@ -307,17 +315,15 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
             ], None)
         }        Rule::string_literal => {
             let full_str = pair.as_str();
-            let (quote_char, content) = if full_str.starts_with('"') {
+            let (_quote_char, content) = if full_str.starts_with('"') {
                 ('"', &full_str[1..full_str.len()-1])
             } else if full_str.starts_with('\'') {
                 ('\'', &full_str[1..full_str.len()-1])
             } else {
                 return Err("Invalid string literal".to_string());
             };
-            
             // Process escape sequences
             let processed_content = process_escape_sequences(content)?;
-            
             Ok(Expression::StringLiteral(processed_content))
         }Rule::integer_literal => {
             let val = pair.as_str().parse::<i64>().map_err(|e| format!("Invalid integer: {}", e))?;
@@ -615,23 +621,53 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
             let condition_expr = build_ast_from_expression(inner_rules.next().unwrap())?;
             let block_pair = inner_rules.next().unwrap();
             if block_pair.as_rule() != Rule::block { return Err("While statement missing block".to_string()); }
-            let body = block_pair.into_inner()
-                            .filter(|p| p.as_rule() == Rule::statement)
-                            .map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
+            
+            let mut body = Vec::new();
+            for inner_pair in block_pair.into_inner() {
+                match inner_pair.as_rule() {
+                    Rule::indented_statements => {
+                        for stmt_pair in inner_pair.into_inner() {
+                            if matches!(stmt_pair.as_rule(), Rule::statement | Rule::function_definition | Rule::class_definition) {
+                                body.push(build_ast_from_statement(stmt_pair)?);
+                            }
+                        }
+                    }
+                    Rule::statement | Rule::function_definition | Rule::class_definition => {
+                        body.push(build_ast_from_statement(inner_pair)?);
+                    }
+                    _ => { /* Skip INDENT, DEDENT, WHITESPACE, COMMENT */ }
+                }
+            }
+            
             Ok(AstNode::Statement(Statement::While {
                 condition: Box::new(condition_expr),
                 body,
             }))
-        }        Rule::for_statement => {
+        }Rule::for_statement => {
             let mut inner_rules = specific_statement_pair.into_inner(); // for_target, expression, block
             let target_pair = inner_rules.next().unwrap();
             let vars = parse_for_target(target_pair)?;
             let iterable_expr = build_ast_from_expression(inner_rules.next().unwrap())?;
             let block_pair = inner_rules.next().unwrap();
             if block_pair.as_rule() != Rule::block { return Err("For statement missing block".to_string()); }
-            let body = block_pair.into_inner()
-                            .filter(|p| p.as_rule() == Rule::statement)
-                            .map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
+            
+            let mut body = Vec::new();
+            for inner_pair in block_pair.into_inner() {
+                match inner_pair.as_rule() {
+                    Rule::indented_statements => {
+                        for stmt_pair in inner_pair.into_inner() {
+                            if matches!(stmt_pair.as_rule(), Rule::statement | Rule::function_definition | Rule::class_definition) {
+                                body.push(build_ast_from_statement(stmt_pair)?);
+                            }
+                        }
+                    }
+                    Rule::statement | Rule::function_definition | Rule::class_definition => {
+                        body.push(build_ast_from_statement(inner_pair)?);
+                    }
+                    _ => { /* Skip INDENT, DEDENT, WHITESPACE, COMMENT */ }
+                }
+            }
+            
             Ok(AstNode::Statement(Statement::For {
                 vars,
                 iterable: Box::new(iterable_expr),
@@ -746,6 +782,7 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
             }
             Ok(AstNode::Statement(Statement::ClassDef {
                 name,
+                base: maybe_base,
                 body,
             }))
         }
@@ -758,9 +795,11 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
 }
 
 // Renamed from parse_eppx_string_final
-pub fn parse_eppx_string(input: &str) -> Result<Vec<AstNode>, String> {
-    let preprocessed = preprocess_indentation(input);
-    
+pub fn parse_eppx_string(input: &str) -> Result<Vec<AstNode>, String> {    let preprocessed = preprocess_indentation(input);
+    println!("Preprocessed input:");
+    println!("{}", preprocessed);
+    println!("--- End preprocessed input ---");
+
     match EppParser::parse(Rule::program, &preprocessed) {
         Ok(mut pairs) => {
             let program_pair = pairs.next().ok_or_else(|| "Empty program".to_string())?;

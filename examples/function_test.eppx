@@ -1,16 +1,14 @@
 # Test user-defined functions in E++
 
-def add(a, b) {
+def add(a, b):
     result = a + b
     print("In add, result is:")
     print(result)
     return result
-}
 
-def greet(name) {
+def greet(name):
     print("Hello, ")
     print(name)
-}
 
 print("Testing function call:")
 sum = add(3, 4)

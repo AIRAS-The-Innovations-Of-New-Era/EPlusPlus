@@ -1,9 +1,9 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
-COMMENT = _{ ("//" ~ (!NEWLINE ~ ANY)*) | ("#" ~ (!NEWLINE ~ ANY)*) }
+COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
 
 program = { SOI ~ ( (statement | function_definition | class_definition) ~ (WHITESPACE* ~ COMMENT*) )* ~ EOI }
 
-statement = { assignment | print_statement | if_statement | while_statement | for_statement | return_statement | expression_statement | break_statement | continue_statement | pass_statement }
+statement = { assignment | print_statement | if_statement | while_statement | for_statement | function_definition | class_definition | return_statement | expression_statement | break_statement | continue_statement | pass_statement }
 expression_statement = { expression }
 
 assignment_operator = @{ "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "//=" | "&=" | "|=" | "^=" | ">>=" | "<<=" }
@@ -12,13 +12,13 @@ assign_target = { identifier ~ ("." ~ identifier)* }
 
 print_statement = { "print" ~ "(" ~ expression ~ ")" }
 
-if_statement = { "if" ~ expression ~ block ~ elif_clause* ~ else_clause? }
-elif_clause = { "elif" ~ expression ~ block }
-else_clause = { "else" ~ block }
+if_statement = { "if" ~ expression ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ block ~ elif_clause* ~ else_clause? }
+elif_clause = { "elif" ~ expression ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ block }
+else_clause = { "else" ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ block }
 
-while_statement = { "while" ~ expression ~ block }
+while_statement = { "while" ~ expression ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ block }
 
-for_statement = { "for" ~ for_target ~ "in" ~ expression ~ block }
+for_statement = { "for" ~ for_target ~ "in" ~ expression ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ block }
 
 // For loop targets - can be single identifier or tuple unpacking
 for_target = { identifier | for_tuple_unpacking }
@@ -37,10 +37,10 @@ logical_or_op = @{ "or" }
 logical_or = { logical_and ~ (logical_or_op ~ logical_and)* }
 
 logical_and_op = @{ "and" }
-logical_and = { logical_not_expr ~ (logical_and_op ~ logical_not_expr)* } // Changed from comparison to logical_not_expr
+logical_and = { logical_not_expr ~ (logical_and_op ~ logical_not_expr)* }
 
 logical_not_op = @{ "not" }
-logical_not_expr = { logical_not_op ~ comparison_identity_membership | comparison_identity_membership } // logical_not is unary
+logical_not_expr = { logical_not_op ~ logical_not_expr | comparison_identity_membership }
 
 // Combined comparison, identity, and membership operators
 comparison_identity_membership = { bitwise_or ~ (comp_ident_member_op ~ bitwise_or)* }
@@ -92,12 +92,14 @@ atom = {
     "(" ~ expression ~ ")"
 }
 
+// factor rule is now just { atom }
 factor = { atom ~ (call_suffix | attr_access)* }
+
 call_suffix = { "(" ~ argument_list? ~ ")" }
 attr_access = { "." ~ identifier }
 lambda_expression = { "lambda" ~ parameter_list? ~ ":" ~ expression }
 argument_list = { argument ~ ("," ~ argument)* }
-argument = { keyword_argument | expression }
+argument = { expression }
 keyword_argument = { identifier ~ "=" ~ expression }
 
 float_literal = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
@@ -107,7 +109,7 @@ none_literal = @{ "None" } // Added for None
 double_quoted_char = { escape_sequence | !("\"" | "\\") ~ ANY }
 single_quoted_char = { escape_sequence | !("'" | "\\") ~ ANY }
 escape_sequence = { "\\" ~ ("n" | "t" | "r" | "b" | "f" | "v" | "0" | "\\" | "\"" | "'" | "a") }
-identifier = @{ !("def" | "class" | "if" | "else" | "elif" | "while" | "for" | "return" | "break" | "continue" | "pass" | "and" | "or" | "not" | "in" | "is" | "None" | "True" | "False" | "lambda") ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 
 function_definition = { decorator* ~ "def" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ block }
 parameter_list = { identifier ~ ("," ~ identifier)* }

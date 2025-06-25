@@ -7,47 +7,40 @@ z = x + y * 2
 print(z)
 
 # If/else
-if z > 20 {
+if z > 20:
     print("z is large")
-} else {
+else:
     print("z is small")
-}
 
 # While loop
 count = 0
-while count < 3 {
+while count < 3:
     print(count)
     count = count + 1
-}
 
 # For loop
-for i in range(3) {
+for i in range(3):
     print(i)
-}
 
 # Function definition and call
-def add(a, b) {
+def add(a, b):
     return a + b
-}
 
 result = add(7, 8)
 print(result)
 
 # Function with no return (void-like)
-def greet(name) {
+def greet(name):
     print("Hello, " + name)
-}
 
 greet("E++")
 
 # Loop control: break, continue, pass
-for i in range(5) {
-    if i == 2 {
+for i in range(5):
+    if i == 2:
         pass
-    } elif i == 3 {
+    elif i == 3:
         continue
-    } elif i == 4 {
+    elif i == 4:
         break
-    }
     print(i)
-}

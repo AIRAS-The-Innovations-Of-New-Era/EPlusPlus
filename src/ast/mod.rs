@@ -8,7 +8,6 @@ pub enum AstNode {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
-    Print(Box<Expression>),
     Assignment {
         target: Box<Expression>, // Changed from name: String to target: Box<Expression>
         operator: AssignmentOperator, // Changed from direct value to include operator
@@ -32,7 +31,9 @@ pub enum Statement {
         params: Vec<String>,
         body: Vec<AstNode>,
         decorators: Vec<Decorator>, // Added decorators support
-    },    Return(Option<Box<Expression>>),
+    },
+    Print(Box<Expression>),
+    Return(Option<Box<Expression>>),
     ExpressionStatement(Box<Expression>), // Added for standalone expressions
     Break,                              // Added for break statements
     Continue,                           // Added for continue statements
@@ -40,6 +41,7 @@ pub enum Statement {
     #[allow(dead_code)] // Allowed because it's a planned feature
     ClassDef {
         name: String,
+        base: Option<String>, // Optional base class name for inheritance
         body: Vec<AstNode>, // Contains assignments (attributes) and function definitions (methods, including __init__)
     },
 }
