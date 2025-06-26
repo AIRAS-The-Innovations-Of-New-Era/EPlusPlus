@@ -541,9 +541,29 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
 
     match specific_statement_pair.as_rule() {
         Rule::print_statement => {
-            let expr_pair = specific_statement_pair.into_inner().next().ok_or_else(|| "Print statement missing expression".to_string())?;
-            let expr_node = build_ast_from_expression(expr_pair)?;
-            Ok(AstNode::Statement(Statement::Print(Box::new(expr_node))))
+            // Parse print statement with argument list (like function call)
+            let mut args = Vec::new();
+            for inner_pair in specific_statement_pair.into_inner() {
+                if inner_pair.as_rule() == Rule::argument_list {
+                    for arg_pair in inner_pair.into_inner() {
+                        if arg_pair.as_rule() == Rule::argument {
+                            let arg_content = arg_pair.into_inner().next().ok_or("Empty argument")?;
+                            args.push(build_ast_from_expression(arg_content)?);
+                        }
+                    }
+                }
+            }
+            // For compatibility with current AST, if we have exactly one argument, use it
+            // Otherwise, create a tuple or handle multiple args differently
+            if args.len() == 1 {
+                Ok(AstNode::Statement(Statement::Print(Box::new(args.into_iter().next().unwrap()))))
+            } else if args.is_empty() {
+                // Empty print() call
+                Ok(AstNode::Statement(Statement::Print(Box::new(Expression::StringLiteral("".to_string())))))
+            } else {
+                // Multiple arguments - create a tuple expression for now
+                Ok(AstNode::Statement(Statement::Print(Box::new(Expression::TupleLiteral(args)))))
+            }
         }
         Rule::assignment => {
             let mut inner_rules = specific_statement_pair.into_inner();
@@ -578,9 +598,23 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
             let condition_expr = build_ast_from_expression(inner_rules.next().unwrap())?;
             let then_block_pair = inner_rules.next().unwrap();
             if then_block_pair.as_rule() != Rule::block { return Err("If statement missing then-block".to_string()); }
-            let then_body = then_block_pair.into_inner()
-                                .filter(|p| p.as_rule() == Rule::statement)
-                                .map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
+            
+            let mut then_body = Vec::new();
+            for inner_pair in then_block_pair.into_inner() {
+                match inner_pair.as_rule() {
+                    Rule::indented_statements => {
+                        for stmt_pair in inner_pair.into_inner() {
+                            if matches!(stmt_pair.as_rule(), Rule::statement | Rule::function_definition | Rule::class_definition) {
+                                then_body.push(build_ast_from_statement(stmt_pair)?);
+                            }
+                        }
+                    }
+                    Rule::statement | Rule::function_definition | Rule::class_definition => {
+                        then_body.push(build_ast_from_statement(inner_pair)?);
+                    }
+                    _ => { /* Skip INDENT, DEDENT, WHITESPACE, COMMENT */ }
+                }
+            }
             
             let mut elifs = Vec::new();
             while let Some(peeked_pair) = inner_rules.peek() {
@@ -590,9 +624,23 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                     let elif_cond = build_ast_from_expression(elif_inner.next().unwrap())?;
                     let elif_block_pair = elif_inner.next().unwrap();
                     if elif_block_pair.as_rule() != Rule::block { return Err("Elif clause missing block".to_string()); }
-                    let elif_body = elif_block_pair.into_inner()
-                                        .filter(|p| p.as_rule() == Rule::statement)
-                                        .map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?;
+                    
+                    let mut elif_body = Vec::new();
+                    for inner_pair in elif_block_pair.into_inner() {
+                        match inner_pair.as_rule() {
+                            Rule::indented_statements => {
+                                for stmt_pair in inner_pair.into_inner() {
+                                    if matches!(stmt_pair.as_rule(), Rule::statement | Rule::function_definition | Rule::class_definition) {
+                                        elif_body.push(build_ast_from_statement(stmt_pair)?);
+                                    }
+                                }
+                            }
+                            Rule::statement | Rule::function_definition | Rule::class_definition => {
+                                elif_body.push(build_ast_from_statement(inner_pair)?);
+                            }
+                            _ => { /* Skip INDENT, DEDENT, WHITESPACE, COMMENT */ }
+                        }
+                    }
                     elifs.push((elif_cond, elif_body));
                 } else {
                     break; // Not an elif_clause, could be else_clause or nothing
@@ -604,9 +652,24 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                     let else_pair = inner_rules.next().unwrap(); // consume else_clause
                     let else_block_pair = else_pair.into_inner().next().unwrap();
                     if else_block_pair.as_rule() != Rule::block { return Err("Else clause missing block".to_string()); }
-                    Some(else_block_pair.into_inner()
-                            .filter(|p| p.as_rule() == Rule::statement)
-                            .map(build_ast_from_statement).collect::<Result<Vec<_>, _>>()?)
+                    
+                    let mut else_stmts = Vec::new();
+                    for inner_pair in else_block_pair.into_inner() {
+                        match inner_pair.as_rule() {
+                            Rule::indented_statements => {
+                                for stmt_pair in inner_pair.into_inner() {
+                                    if matches!(stmt_pair.as_rule(), Rule::statement | Rule::function_definition | Rule::class_definition) {
+                                        else_stmts.push(build_ast_from_statement(stmt_pair)?);
+                                    }
+                                }
+                            }
+                            Rule::statement | Rule::function_definition | Rule::class_definition => {
+                                else_stmts.push(build_ast_from_statement(inner_pair)?);
+                            }
+                            _ => { /* Skip INDENT, DEDENT, WHITESPACE, COMMENT */ }
+                        }
+                    }
+                    Some(else_stmts)
                 } else { None }
             } else { None };
 
@@ -785,6 +848,141 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                 base: maybe_base,
                 body,
             }))
+        }
+        Rule::try_statement => {
+            let mut inner = specific_statement_pair.into_inner();
+            let try_block_pair = inner.next().unwrap();
+            if try_block_pair.as_rule() != Rule::block { 
+                return Err("Try statement missing block".to_string()); 
+            }
+            
+            let mut try_body = Vec::new();
+            for inner_pair in try_block_pair.into_inner() {
+                match inner_pair.as_rule() {
+                    Rule::indented_statements => {
+                        for stmt_pair in inner_pair.into_inner() {
+                            if matches!(stmt_pair.as_rule(), Rule::statement | Rule::function_definition | Rule::class_definition) {
+                                try_body.push(build_ast_from_statement(stmt_pair)?);
+                            }
+                        }
+                    }
+                    Rule::statement | Rule::function_definition | Rule::class_definition => {
+                        try_body.push(build_ast_from_statement(inner_pair)?);
+                    }
+                    _ => { /* Skip INDENT, DEDENT, WHITESPACE, COMMENT */ }
+                }
+            }
+
+            let mut excepts = Vec::new();
+            let mut else_body = None;
+            let mut finally_body = None;
+
+            while let Some(peeked) = inner.peek() {
+                match peeked.as_rule() {
+                    Rule::except_clause => {
+                        let except_pair = inner.next().unwrap();
+                        let mut except_inner = except_pair.into_inner();
+                        let exception_type = if let Some(p) = except_inner.peek() {
+                            if p.as_rule() == Rule::expression {
+                                Some(build_ast_from_expression(except_inner.next().unwrap())?)
+                            } else { None }
+                        } else { None };
+                        let name = if let Some(p) = except_inner.peek() {
+                            if p.as_rule() == Rule::identifier {
+                                Some(except_inner.next().unwrap().as_str().to_string())
+                            } else { None }
+                        } else { None };
+                        let block_pair = except_inner.next().unwrap();
+                        if block_pair.as_rule() != Rule::block { 
+                            return Err("Except clause missing block".to_string()); 
+                        }
+                        
+                        let mut body = Vec::new();
+                        for inner_pair in block_pair.into_inner() {
+                            match inner_pair.as_rule() {
+                                Rule::indented_statements => {
+                                    for stmt_pair in inner_pair.into_inner() {
+                                        if matches!(stmt_pair.as_rule(), Rule::statement | Rule::function_definition | Rule::class_definition) {
+                                            body.push(build_ast_from_statement(stmt_pair)?);
+                                        }
+                                    }
+                                }
+                                Rule::statement | Rule::function_definition | Rule::class_definition => {
+                                    body.push(build_ast_from_statement(inner_pair)?);
+                                }
+                                _ => { /* Skip INDENT, DEDENT, WHITESPACE, COMMENT */ }
+                            }
+                        }
+                        excepts.push(crate::ast::ExceptHandler { exception_type, name, body });
+                    }
+                    Rule::try_else_clause => {
+                        let else_pair = inner.next().unwrap();
+                        let block_pair = else_pair.into_inner().next().unwrap();
+                        if block_pair.as_rule() != Rule::block { 
+                            return Err("Try else clause missing block".to_string()); 
+                        }
+                        
+                        let mut body = Vec::new();
+                        for inner_pair in block_pair.into_inner() {
+                            match inner_pair.as_rule() {
+                                Rule::indented_statements => {
+                                    for stmt_pair in inner_pair.into_inner() {
+                                        if matches!(stmt_pair.as_rule(), Rule::statement | Rule::function_definition | Rule::class_definition) {
+                                            body.push(build_ast_from_statement(stmt_pair)?);
+                                        }
+                                    }
+                                }
+                                Rule::statement | Rule::function_definition | Rule::class_definition => {
+                                    body.push(build_ast_from_statement(inner_pair)?);
+                                }
+                                _ => { /* Skip INDENT, DEDENT, WHITESPACE, COMMENT */ }
+                            }
+                        }
+                        else_body = Some(body);
+                    }
+                    Rule::finally_clause => {
+                        let finally_pair = inner.next().unwrap();
+                        let block_pair = finally_pair.into_inner().next().unwrap();
+                        if block_pair.as_rule() != Rule::block { 
+                            return Err("Finally clause missing block".to_string()); 
+                        }
+                        
+                        let mut body = Vec::new();
+                        for inner_pair in block_pair.into_inner() {
+                            match inner_pair.as_rule() {
+                                Rule::indented_statements => {
+                                    for stmt_pair in inner_pair.into_inner() {
+                                        if matches!(stmt_pair.as_rule(), Rule::statement | Rule::function_definition | Rule::class_definition) {
+                                            body.push(build_ast_from_statement(stmt_pair)?);
+                                        }
+                                    }
+                                }
+                                Rule::statement | Rule::function_definition | Rule::class_definition => {
+                                    body.push(build_ast_from_statement(inner_pair)?);
+                                }
+                                _ => { /* Skip INDENT, DEDENT, WHITESPACE, COMMENT */ }
+                            }
+                        }
+                        finally_body = Some(body);
+                    }
+                    _ => { inner.next(); } // skip
+                }
+            }
+            Ok(AstNode::Statement(Statement::TryExcept {
+                try_body,
+                excepts,
+                else_body,
+                finally_body,
+            }))
+        }
+        Rule::raise_statement => {
+            let mut inner = specific_statement_pair.into_inner();
+            let expr = if let Some(expr_pair) = inner.next() {
+                Some(build_ast_from_expression(expr_pair)?)
+            } else {
+                None
+            };
+            Ok(AstNode::Statement(Statement::Raise(expr)))
         }
         _ => Err(format!(
             "Unhandled specific statement rule: {:?}\nContent: '{}'",

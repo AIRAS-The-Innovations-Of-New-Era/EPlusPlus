@@ -230,8 +230,8 @@ This document tracks the implementation progress of Python syntax and features i
 
 **6. Exception Handling:**
 
-- [ ] `try`, `except`, `else`, `finally`
-- [ ] `raise`
+- [x] `try`, `except`, `else`, `finally`
+- [x] `raise`
 
 **7. File I/O:**
 

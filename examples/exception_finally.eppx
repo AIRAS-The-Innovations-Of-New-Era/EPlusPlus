@@ -1,0 +1,14 @@
+# Test finally always runs
+
+def test_finally(x):
+    try:
+        if x:
+            raise "fail"
+        print("no error")
+    except as e:
+        print("caught", e)
+    finally:
+        print("cleanup")
+
+test_finally(0)
+test_finally(1)

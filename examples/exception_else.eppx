@@ -1,0 +1,14 @@
+# Test else block in try/except/else
+
+def test_else(x):
+    try:
+        if x:
+            raise "fail"
+        print("no error")
+    except as e:
+        print("caught", e)
+    else:
+        print("else block ran")
+
+test_else(0)
+test_else(1)
