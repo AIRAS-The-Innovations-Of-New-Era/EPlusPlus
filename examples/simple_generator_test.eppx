@@ -1,0 +1,6 @@
+# Simple generator test
+data = [1, 2, 3, 4, 5]
+
+# This should be parsed as a function call with generator expression
+result = sum(x for x in data)
+print("result:", result)

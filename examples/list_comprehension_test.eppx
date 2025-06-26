@@ -1,0 +1,16 @@
+# List comprehension examples
+numbers = [1, 2, 3, 4, 5]
+squares = [x * x for x in numbers]
+print(squares)
+
+# List comprehension with condition
+even_squares = [x * x for x in numbers if x % 2 == 0]
+print(even_squares)
+
+# List comprehension with range
+range_squares = [x * x for x in range(10)]
+print(range_squares)
+
+# Nested list comprehension
+matrix = [[i * j for j in range(3)] for i in range(3)]
+print(matrix)

@@ -1,0 +1,39 @@
+# Comprehensive comprehension test
+# Testing all types of comprehensions together
+
+# Data to work with
+data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+# List comprehensions
+squares = [x * x for x in data]
+evens = [x for x in data if x % 2 == 0]
+transformed = [x * 2 + 1 for x in data if x > 5]
+
+print("List comprehensions:")
+print("squares:", squares)
+print("evens:", evens)
+print("transformed:", transformed)
+
+# Dictionary comprehensions
+square_dict = {x: x * x for x in data}
+even_dict = {x: x * x for x in data if x % 2 == 0}
+
+print("Dictionary comprehensions:")
+print("square_dict:", square_dict)
+print("even_dict:", even_dict)
+
+# Set comprehensions
+square_set = {x * x for x in data}
+remainder_set = {x % 3 for x in data}
+
+print("Set comprehensions:")
+print("square_set:", square_set)
+print("remainder_set:", remainder_set)
+
+# Generator expressions
+square_gen = (x * x for x in data)
+sum_gen = sum(x for x in data if x % 2 == 1)
+
+print("Generator expressions:")
+print("square_gen:", list(square_gen))
+print("sum_gen:", sum_gen)

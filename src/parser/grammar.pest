@@ -78,6 +78,7 @@ pow_op = @{ "**" }
 
 atom = {
     lambda_expression |
+    generator_expression |
     list_literal |
     tuple_literal |
     dict_literal |
@@ -93,13 +94,15 @@ atom = {
 }
 
 // factor rule is now just { atom }
-factor = { atom ~ (call_suffix | attr_access)* }
+factor = { atom ~ (call_suffix | attr_access | index_access)* }
 
 call_suffix = { "(" ~ argument_list? ~ ")" }
 attr_access = { "." ~ identifier }
+index_access = { "[" ~ expression ~ "]" }
 lambda_expression = { "lambda" ~ parameter_list? ~ ":" ~ expression }
 argument_list = { argument ~ ("," ~ argument)* }
-argument = { expression }
+argument = { generator_expression_no_parens | expression }
+generator_expression_no_parens = { expression ~ comprehension_for }
 keyword_argument = { identifier ~ "=" ~ expression }
 
 float_literal = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
@@ -127,13 +130,23 @@ break_statement = { "break" }
 continue_statement = { "continue" }
 pass_statement = { "pass" }
 
-list_literal = { "[" ~ (expression ~ ("," ~ expression)*)? ~ "]" } // Added for list literals
+list_literal = { "[" ~ (list_comprehension | (expression ~ ("," ~ expression)*)?) ~ "]" }
 tuple_literal = { "(" ~ expression ~ ("," ~ expression)+ ~ ")" }
-dict_literal = { "{" ~ (dict_entry ~ ("," ~ dict_entry)*)? ~ "}" }
+dict_literal = { "{" ~ (dict_comprehension | (dict_entry ~ ("," ~ dict_entry)*)?) ~ "}" }
 dict_entry = { expression ~ ":" ~ expression }
-set_literal = { "{" ~ expression ~ ("," ~ expression)* ~ "}" }
+set_literal = { "{" ~ (set_comprehension | (expression ~ ("," ~ expression)*)) ~ "}" }
 frozenset_literal = { "frozenset" ~ "(" ~ list_literal ~ ")" }
 complex_literal = { "complex" ~ "(" ~ expression ~ "," ~ expression ~ ")" }
+
+// Comprehensions
+list_comprehension = { expression ~ comprehension_for }
+dict_comprehension = { expression ~ ":" ~ expression ~ comprehension_for }
+set_comprehension = { expression ~ comprehension_for }
+generator_expression = { "(" ~ expression ~ comprehension_for ~ ")" }
+
+comprehension_for = { "for" ~ comprehension_target ~ "in" ~ expression ~ comprehension_if* }
+comprehension_target = { identifier ~ ("," ~ identifier)* | identifier }
+comprehension_if = { "if" ~ expression }
 
 class_definition = { "class" ~ identifier ~ ("(" ~ identifier ~ ")")? ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ block }
 

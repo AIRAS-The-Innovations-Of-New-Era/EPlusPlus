@@ -1,5 +1,5 @@
 // Codegen module placeholder
-use crate::ast::{AstNode, Expression, Statement, BinOp, UnaryOp, AssignmentOperator, WithItem};
+use crate::ast::{AstNode, Expression, Statement, BinOp, UnaryOp, AssignmentOperator, Comprehension};
 use std::collections::{HashMap, HashSet};
 
 // Placeholder for SymbolTable, FunctionTable, and TypeMap
@@ -56,22 +56,10 @@ impl SymbolTable {    pub fn new() -> Self {
     }
     // Add a fork method for lambda scopes or similar isolated contexts
     pub fn fork(&self) -> SymbolTable {
-        // Create a new SymbolTable that inherits or can access outer scopes,
-        // but modifications are isolated. For simplicity, let's start fresh for lambda body,
-        // relying on C++ capture for outer variables.
-        // A more sophisticated fork would clone the current scope chain or link to it.
-        // For [=] capture, the lambda body doesn't strictly need to see outer E++ scopes
-        // during its own C++ code generation, as C++ handles the capture.
-        // However, for type checking or more complex captures, this would be important.
-        // For now, a simple new scope is sufficient for codegen of [=] lambdas.
-        let new_table = SymbolTable::new();
-        // If we want to provide read-only access to outer scopes for some reason:
-        // new_table.scopes = self.scopes.clone(); // This would require VariableInfo to be Clone
-        // new_table.enter_scope(); // Then push a new mutable scope for the lambda itself.
-        // For [=] capture, the C++ lambda itself handles access to captured variables.
-        // The E++ symbol table within the lambda body primarily needs to know about lambda parameters.
-        new_table // Returns a new, independent symbol table for the lambda's parameters and body.
-                  // This is a simplification. Proper closure support would need more.
+        Self {
+            scopes: self.scopes.clone(),
+            current_scope_index: self.current_scope_index,
+        }
     }
 }
 
@@ -916,7 +904,22 @@ pub fn emit_expression_cpp(
         Expression::FloatLiteral(f) => Ok(format!("{}", f)), // Float literals
         Expression::NoneLiteral => Ok("nullptr".to_string()),
         Expression::BooleanLiteral(b) => Ok(format!("{}", b)),
-        Expression::Identifier(name) => Ok(name.clone()),        Expression::UnaryOperation { op, operand } => {
+        Expression::Identifier(name) => {
+            // Handle builtin functions
+            match name.as_str() {
+                "sum" => Ok("eppx_sum".to_string()),
+                "all" => Ok("eppx_all".to_string()),
+                "any" => Ok("eppx_any".to_string()),
+                "reversed" => Ok("eppx_reversed".to_string()),
+                "list" => Ok("eppx_list".to_string()),
+                "len" => Ok("eppx_len".to_string()),
+                "zip" => Ok("eppx_zip".to_string()),
+                "range" => Ok("eppx_range".to_string()),
+                "max" => Ok("eppx_max".to_string()),
+                "min" => Ok("eppx_min".to_string()),
+                _ => Ok(name.clone()),
+            }
+        },        Expression::UnaryOperation { op, operand } => {
             let operand_cpp = emit_expression_cpp(operand, symbol_table, function_table, type_map)?;
             match op {
                 UnaryOp::Not => Ok(format!("!({})", operand_cpp)), // Added parentheses for safety
@@ -952,6 +955,11 @@ pub fn emit_expression_cpp(
             }
             let object_cpp = emit_expression_cpp(object, symbol_table, function_table, type_map)?;
             Ok(format!("{}.{}", object_cpp, attr))
+        }
+        Expression::Index { object, index } => {
+            let object_cpp = emit_expression_cpp(object, symbol_table, function_table, type_map)?;
+            let index_cpp = emit_expression_cpp(index, symbol_table, function_table, type_map)?;
+            Ok(format!("{}[{}]", object_cpp, index_cpp))
         }
         Expression::Call { callee, args } => {
             let mut args_cpp = Vec::new();
@@ -1117,7 +1125,7 @@ pub fn emit_expression_cpp(
                         return Ok(format!("eppx_enumerate({})", args_cpp[0]));
                     }
                     "zip" if args.len() >= 2 => {
-                        return Ok(format!("eppx_zip({{{}}})", args_cpp.join(", ")));
+                        return Ok(format!("eppx_zip({})", args_cpp.join(", ")));
                     }
                     "map" if args.len() >= 2 => {
                         return Ok(format!("eppx_map({}, {{{}}})", args_cpp[0], args_cpp[1..].join(", ")));
@@ -1186,6 +1194,18 @@ pub fn emit_expression_cpp(
                         let object_cpp = emit_expression_cpp(object, symbol_table, function_table, type_map)?;
                         return Ok(format!("{}->tell()", object_cpp));
                     }
+                    "upper" => {
+                        let object_cpp = emit_expression_cpp(object, symbol_table, function_table, type_map)?;
+                        return Ok(format!("eppx_upper({})", object_cpp));
+                    }
+                    "lower" => {
+                        let object_cpp = emit_expression_cpp(object, symbol_table, function_table, type_map)?;
+                        return Ok(format!("eppx_lower({})", object_cpp));
+                    }
+                    "size" | "length" => {
+                        let object_cpp = emit_expression_cpp(object, symbol_table, function_table, type_map)?;
+                        return Ok(format!("eppx_len({})", object_cpp));
+                    }
                     _ => {}
                 }
             }
@@ -1217,7 +1237,7 @@ pub fn emit_expression_cpp(
             // If the body were a block of statements, it would need _generate_cpp_code_with_vars
             let body_cpp = emit_expression_cpp(body, &mut lambda_symbol_table, function_table, type_map)?;
             
-            Ok(format!("([=]({}) {{ return {}; }})", params_cpp, body_cpp))
+            Ok(format!("([&]({}) {{ return {}; }})", params_cpp, body_cpp))
         }
         Expression::BinaryOperation { left, op, right } => {
             let l = emit_expression_cpp(left, symbol_table, function_table, type_map)?;
@@ -1304,9 +1324,26 @@ pub fn emit_expression_cpp(
             let imag_cpp = emit_expression_cpp(imag, symbol_table, function_table, type_map)?;
             Ok(format!("std::complex<double>({}, {})", real_cpp, imag_cpp))
         }
+        // Comprehensions
+        Expression::ListComprehension { element, comprehension } => {
+            emit_comprehension_cpp(element, comprehension, "list", symbol_table, function_table, type_map)
+        }
+        Expression::DictComprehension { key, value, comprehension } => {
+            emit_dict_comprehension_cpp(key, value, comprehension, symbol_table, function_table, type_map)
+        }
+        Expression::SetComprehension { element, comprehension } => {
+            emit_comprehension_cpp(element, comprehension, "set", symbol_table, function_table, type_map)
+        }
+        Expression::GeneratorExpression { element, comprehension } => {
+            emit_comprehension_cpp(element, comprehension, "generator", symbol_table, function_table, type_map)
+        }
+        Expression::Index { object, index } => {
+            let object_cpp = emit_expression_cpp(object, symbol_table, function_table, type_map)?;
+            let index_cpp = emit_expression_cpp(index, symbol_table, function_table, type_map)?;
+            Ok(format!("{}[{}]", object_cpp, index_cpp))
+        }
         // The duplicate Lambda match arm that was here (around lines 450-458) is removed.
         // The primary Expression::Lambda handler is earlier and correctly uses symbol_table.
-        _ => Err(String::from("Unsupported expression type for C++ codegen"))
     }
 }
 
@@ -1424,5 +1461,178 @@ fn is_likely_string_expression(expr: &Expression) -> bool {
         },
         _ => false,
     }
+}
+
+// Helper function to emit comprehensions (list, set, generator)
+fn emit_comprehension_cpp(
+    element: &Expression,
+    comprehension: &Comprehension,
+    comp_type: &str,
+    symbol_table: &mut SymbolTable,
+    function_table: &FunctionTable,
+    type_map: &mut TypeMap,
+) -> Result<String, String> {
+    // Create a new scope for the comprehension variable(s)
+    symbol_table.enter_scope();
+    
+    // Add all target variables to symbol table
+    for target in &comprehension.target {
+        symbol_table.add_variable(target, "auto");
+    }
+    
+    let iter_cpp = emit_expression_cpp(&comprehension.iter, symbol_table, function_table, type_map)?;
+    let element_cpp = emit_expression_cpp(element, symbol_table, function_table, type_map)?;
+    
+    // Generate if conditions
+    let mut condition_cpp = String::new();
+    if !comprehension.ifs.is_empty() {
+        let conditions: Result<Vec<String>, String> = comprehension.ifs.iter()
+            .map(|cond| emit_expression_cpp(cond, symbol_table, function_table, type_map))
+            .collect();
+        let conditions = conditions?;
+        condition_cpp = format!("if ({}) ", conditions.join(" && "));
+    }
+    
+    symbol_table.exit_scope();
+    
+    // Generate target pattern for destructuring
+    let target_pattern = if comprehension.target.len() == 1 {
+        format!("auto {}", comprehension.target[0])
+    } else {
+        // For pairs (like from zip), use structured binding
+        format!("auto [{}]", comprehension.target.join(", "))
+    };
+    
+    match comp_type {
+        "list" => {
+            // Check if this is a nested comprehension by examining the element expression
+            let is_nested_comprehension = matches!(element, 
+                Expression::ListComprehension { .. } | 
+                Expression::DictComprehension { .. } | 
+                Expression::SetComprehension { .. } | 
+                Expression::GeneratorExpression { .. }
+            );
+            
+            if is_nested_comprehension {
+                // For nested comprehensions, use a different approach to avoid decltype issues
+                // We'll just use auto and let the first push_back determine the type
+                Ok(format!(
+                    "([&]() {{ \
+                        std::vector<decltype({})> temp_vec; \
+                        for ({} : {}) {{ \
+                            auto temp_elem = {}; \
+                            {}{{ temp_vec.push_back(temp_elem); }} \
+                        }} \
+                        return temp_vec; \
+                    }})()",
+                    // For the decltype, we'll create a dummy instance of the inner comprehension type
+                    "std::vector<long long>{}", target_pattern, iter_cpp, element_cpp, condition_cpp
+                ))
+            } else {
+                Ok(format!(
+                    "([&]() {{ \
+                        std::vector<long long> temp_vec; \
+                        for ({} : {}) {{ \
+                            auto temp_elem = {}; \
+                            {}{{ temp_vec.push_back(static_cast<long long>(temp_elem)); }} \
+                        }} \
+                        return temp_vec; \
+                    }})()",
+                    target_pattern, iter_cpp, element_cpp, condition_cpp
+                ))
+            }
+        }
+        "set" => {
+            Ok(format!(
+                "([&]() {{ \
+                    std::set<long long> temp_set; \
+                    for ({} : {}) {{ \
+                        auto temp_elem = {}; \
+                        {}{{ temp_set.insert(static_cast<long long>(temp_elem)); }} \
+                    }} \
+                    return temp_set; \
+                }})()",
+                target_pattern, iter_cpp, element_cpp, condition_cpp
+            ))
+        }
+        "generator" => {
+            // For generator expressions, we'll use a lambda that returns a vector for simplicity
+            // In a full implementation, this would be a proper iterator/generator
+            Ok(format!(
+                "([&]() {{ \
+                    std::vector<long long> temp_vec; \
+                    for ({} : {}) {{ \
+                        auto temp_elem = {}; \
+                        {}{{ temp_vec.push_back(static_cast<long long>(temp_elem)); }} \
+                    }} \
+                    return temp_vec; \
+                }})()",
+                target_pattern, iter_cpp, element_cpp, condition_cpp
+            ))
+        }
+        _ => Err(format!("Unsupported comprehension type: {}", comp_type))
+    }
+}
+
+// Helper function to emit dictionary comprehensions
+fn emit_dict_comprehension_cpp(
+    key: &Expression,
+    value: &Expression,
+    comprehension: &Comprehension,
+    symbol_table: &mut SymbolTable,
+    function_table: &FunctionTable,
+    type_map: &mut TypeMap,
+) -> Result<String, String> {
+    // Create a new scope for the comprehension variable(s)
+    symbol_table.enter_scope();
+    
+    // Add all target variables to symbol table
+    for target in &comprehension.target {
+        symbol_table.add_variable(target, "auto");
+    }
+    
+    let iter_cpp = emit_expression_cpp(&comprehension.iter, symbol_table, function_table, type_map)?;
+    let key_cpp = emit_expression_cpp(key, symbol_table, function_table, type_map)?;
+    let value_cpp = emit_expression_cpp(value, symbol_table, function_table, type_map)?;
+    
+    // Generate if conditions
+    let mut condition_cpp = String::new();
+    if !comprehension.ifs.is_empty() {
+        let conditions: Result<Vec<String>, String> = comprehension.ifs.iter()
+            .map(|cond| emit_expression_cpp(cond, symbol_table, function_table, type_map))
+            .collect();
+        let conditions = conditions?;
+        condition_cpp = format!("if ({}) ", conditions.join(" && "));
+    }
+    
+    symbol_table.exit_scope();
+    
+    // Generate target pattern for destructuring
+    let target_pattern = if comprehension.target.len() == 1 {
+        format!("auto {}", comprehension.target[0])
+    } else {
+        // For pairs (like from zip), use structured binding
+        format!("auto [{}]", comprehension.target.join(", "))
+    };
+    
+    // Generate the comprehension using stringstream for both key and value conversion
+    Ok(format!(
+        "([&]() {{ \
+            std::map<std::string, std::string> temp_map; \
+            for ({} : {}) {{ \
+                auto temp_key = {}; \
+                auto temp_value = {}; \
+                {}{{ \
+                    std::ostringstream key_ss; \
+                    key_ss << temp_key; \
+                    std::ostringstream value_ss; \
+                    value_ss << temp_value; \
+                    temp_map[key_ss.str()] = value_ss.str(); \
+                }} \
+            }} \
+            return temp_map; \
+        }})()",
+        target_pattern, iter_cpp, key_cpp, value_cpp, condition_cpp
+    ))
 }
 

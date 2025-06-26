@@ -4,7 +4,7 @@ use pest::iterators::{Pair, Pairs}; // Added Pairs
 use std::fs;
 use std::path::Path;
 
-use crate::ast::{AstNode, Expression, Statement, BinOp, UnaryOp, AssignmentOperator, Decorator, Argument, WithItem}; // Added Decorator, Argument, and WithItem
+use crate::ast::{AstNode, Expression, Statement, BinOp, UnaryOp, AssignmentOperator, Decorator, Argument, Comprehension}; // Added Comprehension
 
 #[derive(Parser)]
 #[grammar = "parser/grammar.pest"]
@@ -213,6 +213,15 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
                             attr: attr_name.as_str().to_string(),
                         };
                     }
+                    Rule::index_access => {
+                        // index_access = { "[" ~ expression ~ "]" }
+                        let index_expr = suffix_pair.into_inner().next().ok_or("Missing index expression")?;
+                        let index_ast = build_ast_from_expression(index_expr)?;
+                        current_expr = Expression::Index {
+                            object: Box::new(current_expr),
+                            index: Box::new(index_ast),
+                        };
+                    }
                     _ => return Err(format!("Unexpected suffix rule: {:?}", suffix_pair.as_rule())),
                 }
             }
@@ -375,14 +384,24 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
                 body: Box::new(body),
             })
         }        Rule::list_literal => {
-            // Parse list literal: [expr1, expr2, ...]
-            let mut elements = Vec::new();
-            for expr_pair in pair.into_inner() {
-                // Since expression is a silent rule, we get the actual expression rule
-                // Skip any potential comma tokens and process all expressions
-                elements.push(build_ast_from_expression(expr_pair)?);
+            // Parse list literal: [expr1, expr2, ...] or [expr for var in iterable if condition]
+            let mut inner_pairs = pair.into_inner();
+            if let Some(first_pair) = inner_pairs.next() {
+                if first_pair.as_rule() == Rule::list_comprehension {
+                    // This is a list comprehension
+                    parse_list_comprehension(first_pair)
+                } else {
+                    // This is a regular list literal
+                    let mut elements = vec![build_ast_from_expression(first_pair)?];
+                    for expr_pair in inner_pairs {
+                        elements.push(build_ast_from_expression(expr_pair)?);
+                    }
+                    Ok(Expression::ListLiteral(elements))
+                }
+            } else {
+                // Empty list
+                Ok(Expression::ListLiteral(vec![]))
             }
-            Ok(Expression::ListLiteral(elements))
         }
         Rule::tuple_literal => {
             let mut elements = Vec::new();
@@ -392,21 +411,54 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
             Ok(Expression::TupleLiteral(elements))
         }
         Rule::dict_literal => {
-            let mut entries = Vec::new();
-            for entry_pair in pair.into_inner() {
-                let mut entry_inner = entry_pair.into_inner();
-                let key = build_ast_from_expression(entry_inner.next().unwrap())?;
-                let value = build_ast_from_expression(entry_inner.next().unwrap())?;
-                entries.push((key, value));
+            // Parse dict literal: {key1: val1, key2: val2, ...} or {key: val for var in iterable if condition}
+            let mut inner_pairs = pair.into_inner();
+            if let Some(first_pair) = inner_pairs.next() {
+                if first_pair.as_rule() == Rule::dict_comprehension {
+                    // This is a dict comprehension
+                    parse_dict_comprehension(first_pair)
+                } else {
+                    // This is a regular dict literal
+                    let mut entries = Vec::new();
+                    // The first_pair should be a dict_entry
+                    let mut entry_inner = first_pair.into_inner();
+                    let key = build_ast_from_expression(entry_inner.next().unwrap())?;
+                    let value = build_ast_from_expression(entry_inner.next().unwrap())?;
+                    entries.push((key, value));
+                    
+                    // Process remaining entries
+                    for entry_pair in inner_pairs {
+                        let mut entry_inner = entry_pair.into_inner();
+                        let key = build_ast_from_expression(entry_inner.next().unwrap())?;
+                        let value = build_ast_from_expression(entry_inner.next().unwrap())?;
+                        entries.push((key, value));
+                    }
+                    Ok(Expression::DictLiteral(entries))
+                }
+            } else {
+                // Empty dict
+                Ok(Expression::DictLiteral(vec![]))
             }
-            Ok(Expression::DictLiteral(entries))
         }
         Rule::set_literal => {
-            let mut elements = Vec::new();
-            for expr_pair in pair.into_inner() {
-                elements.push(build_ast_from_expression(expr_pair)?);
+            // Parse set literal: {expr1, expr2, ...} or {expr for var in iterable if condition}
+            let mut inner_pairs = pair.into_inner();
+            if let Some(first_pair) = inner_pairs.next() {
+                if first_pair.as_rule() == Rule::set_comprehension {
+                    // This is a set comprehension
+                    parse_set_comprehension(first_pair)
+                } else {
+                    // This is a regular set literal
+                    let mut elements = vec![build_ast_from_expression(first_pair)?];
+                    for expr_pair in inner_pairs {
+                        elements.push(build_ast_from_expression(expr_pair)?);
+                    }
+                    Ok(Expression::SetLiteral(elements))
+                }
+            } else {
+                // Empty set (should not happen in grammar, but handle it)
+                Ok(Expression::SetLiteral(vec![]))
             }
-            Ok(Expression::SetLiteral(elements))
         }
         Rule::frozenset_literal => {
             let mut inner = pair.into_inner();
@@ -422,6 +474,23 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
             let real = build_ast_from_expression(inner.next().unwrap())?;
             let imag = build_ast_from_expression(inner.next().unwrap())?;
             Ok(Expression::ComplexLiteral(Box::new(real), Box::new(imag)))
+        }
+        Rule::generator_expression => {
+            parse_generator_expression(pair)
+        }
+        Rule::generator_expression_no_parens => {
+            // Parse generator expression without parentheses
+            let mut inner = pair.into_inner();
+            let element_pair = inner.next().ok_or("Generator expression missing element")?;
+            let comprehension_pair = inner.next().ok_or("Generator expression missing comprehension")?;
+            
+            let element = build_ast_from_expression(element_pair)?;
+            let comprehension = parse_comprehension(comprehension_pair)?;
+            
+            Ok(Expression::GeneratorExpression {
+                element: Box::new(element),
+                comprehension,
+            })
         }
         // Catch-all for rules that should have been handled by `expression` or `factor`'s recursion,
         // or are actual terminals not listed above.
@@ -482,6 +551,21 @@ fn parse_argument(pair: Pair<Rule>) -> Result<Argument, String> {
             let name = name_pair.as_str().to_string();
             let value = build_ast_from_expression(value_pair)?;
             Ok(Argument::Keyword(name, value))
+        }
+        Rule::generator_expression_no_parens => {
+            // Parse generator expression without parentheses
+            let mut inner = pair.into_inner();
+            let element_pair = inner.next().ok_or("Generator expression missing element")?;
+            let comprehension_pair = inner.next().ok_or("Generator expression missing comprehension")?;
+            
+            let element = build_ast_from_expression(element_pair)?;
+            let comprehension = parse_comprehension(comprehension_pair)?;
+            
+            let expr = Expression::GeneratorExpression {
+                element: Box::new(element),
+                comprehension,
+            };
+            Ok(Argument::Positional(expr))
         }
         _ => {
             // Treat as positional argument (expression)
@@ -1075,4 +1159,116 @@ pub fn parse_eppx_file(file_path: &Path) -> Result<Vec<AstNode>, String> {
     let content = fs::read_to_string(file_path)
         .map_err(|e| format!("Failed to read file {}: {}", file_path.display(), e))?;
     parse_eppx_string(&content) // Calls renamed parse_eppx_string
+}
+
+// Function to parse comprehension_for clause
+fn parse_comprehension(pair: Pair<Rule>) -> Result<Comprehension, String> {
+    match pair.as_rule() {
+        Rule::comprehension_for => {
+            let mut inner = pair.into_inner();
+            let target_pair = inner.next().ok_or("Comprehension missing target")?;
+            
+            // Parse comprehension target (can be single identifier or multiple)
+            let target = match target_pair.as_rule() {
+                Rule::comprehension_target => {
+                    let mut targets = Vec::new();
+                    for identifier_pair in target_pair.into_inner() {
+                        if identifier_pair.as_rule() == Rule::identifier {
+                            targets.push(identifier_pair.as_str().to_string());
+                        }
+                    }
+                    targets
+                }
+                Rule::identifier => {
+                    vec![target_pair.as_str().to_string()]
+                }
+                _ => return Err(format!("Unexpected comprehension target rule: {:?}", target_pair.as_rule()))
+            };
+            
+            let iter_pair = inner.next().ok_or("Comprehension missing iterable")?;
+            let iter = build_ast_from_expression(iter_pair)?;
+            
+            // Parse any if conditions
+            let mut ifs = Vec::new();
+            for if_pair in inner {
+                if if_pair.as_rule() == Rule::comprehension_if {
+                    let condition_pair = if_pair.into_inner().next().ok_or("Comprehension if missing condition")?;
+                    let condition = build_ast_from_expression(condition_pair)?;
+                    ifs.push(condition);
+                }
+            }
+            
+            Ok(Comprehension {
+                target,
+                iter: Box::new(iter),
+                ifs,
+                is_async: false, // For future async comprehensions
+            })
+        }
+        _ => Err(format!("Expected comprehension_for, got {:?}", pair.as_rule()))
+    }
+}
+
+// Function to parse list comprehension
+fn parse_list_comprehension(pair: Pair<Rule>) -> Result<Expression, String> {
+    let mut inner = pair.into_inner();
+    let element_pair = inner.next().ok_or("List comprehension missing element")?;
+    let element = build_ast_from_expression(element_pair)?;
+    
+    let comprehension_pair = inner.next().ok_or("List comprehension missing comprehension")?;
+    let comprehension = parse_comprehension(comprehension_pair)?;
+    
+    Ok(Expression::ListComprehension {
+        element: Box::new(element),
+        comprehension,
+    })
+}
+
+// Function to parse dict comprehension
+fn parse_dict_comprehension(pair: Pair<Rule>) -> Result<Expression, String> {
+    let mut inner = pair.into_inner();
+    let key_pair = inner.next().ok_or("Dict comprehension missing key")?;
+    let key = build_ast_from_expression(key_pair)?;
+    
+    let value_pair = inner.next().ok_or("Dict comprehension missing value")?;
+    let value = build_ast_from_expression(value_pair)?;
+    
+    let comprehension_pair = inner.next().ok_or("Dict comprehension missing comprehension")?;
+    let comprehension = parse_comprehension(comprehension_pair)?;
+    
+    Ok(Expression::DictComprehension {
+        key: Box::new(key),
+        value: Box::new(value),
+        comprehension,
+    })
+}
+
+// Function to parse set comprehension
+fn parse_set_comprehension(pair: Pair<Rule>) -> Result<Expression, String> {
+    let mut inner = pair.into_inner();
+    let element_pair = inner.next().ok_or("Set comprehension missing element")?;
+    let element = build_ast_from_expression(element_pair)?;
+    
+    let comprehension_pair = inner.next().ok_or("Set comprehension missing comprehension")?;
+    let comprehension = parse_comprehension(comprehension_pair)?;
+    
+    Ok(Expression::SetComprehension {
+        element: Box::new(element),
+        comprehension,
+    })
+}
+
+// Function to parse generator expression
+fn parse_generator_expression(pair: Pair<Rule>) -> Result<Expression, String> {
+    let mut inner = pair.into_inner();
+    let element_pair = inner.next().ok_or("Generator expression missing element")?;
+    let element = build_ast_from_expression(element_pair)?;
+    
+    let comprehension_pair = inner.next().ok_or("Generator expression missing comprehension")?;
+    let comprehension = parse_comprehension(comprehension_pair)?;
+    
+    Ok(Expression::GeneratorExpression {
+        element: Box::new(element),
+        comprehension,
+    })
 }

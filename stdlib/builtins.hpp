@@ -31,6 +31,32 @@ std::vector<long long> eppx_range(long long n) {
     return result;
 }
 
+// Range function overloads
+std::vector<long long> eppx_range(long long start, long long stop) {
+    std::vector<long long> result;
+    if (start < stop) {
+        result.reserve(stop - start);
+        for (long long i = start; i < stop; ++i) {
+            result.push_back(i);
+        }
+    }
+    return result;
+}
+
+std::vector<long long> eppx_range(long long start, long long stop, long long step) {
+    std::vector<long long> result;
+    if (step > 0 && start < stop) {
+        for (long long i = start; i < stop; i += step) {
+            result.push_back(i);
+        }
+    } else if (step < 0 && start > stop) {
+        for (long long i = start; i > stop; i += step) {
+            result.push_back(i);
+        }
+    }
+    return result;
+}
+
 // String representation functions
 std::string eppx_hex(long long n) {
     std::stringstream ss;
@@ -100,6 +126,12 @@ std::vector<T> eppx_to_list(const std::set<T>& s) {
 template<typename T>
 std::set<T> eppx_to_set(const std::vector<T>& vec) {
     return std::set<T>(vec.begin(), vec.end());
+}
+
+// List conversion function (alias for eppx_to_list)
+template<typename Container>
+auto eppx_list(const Container& container) -> std::vector<typename Container::value_type> {
+    return std::vector<typename Container::value_type>(container.begin(), container.end());
 }
 
 // I/O functions
@@ -182,12 +214,21 @@ std::vector<std::pair<size_t, typename Container::value_type>> eppx_enumerate(co
     return result;
 }
 
-template<typename... Containers>
-auto eppx_zip(const Containers&... containers) {
-    // Simplified zip implementation for 2 containers
-    // Full implementation would need variadic template handling
-    std::vector<std::tuple<typename Containers::value_type...>> result;
-    // This is a placeholder - full zip implementation is complex
+template<typename Container1, typename Container2>
+auto eppx_zip(const Container1& c1, const Container2& c2) {
+    using Value1 = typename Container1::value_type;
+    using Value2 = typename Container2::value_type;
+    std::vector<std::pair<Value1, Value2>> result;
+    
+    auto it1 = c1.begin();
+    auto it2 = c2.begin();
+    
+    while (it1 != c1.end() && it2 != c2.end()) {
+        result.emplace_back(*it1, *it2);
+        ++it1;
+        ++it2;
+    }
+    
     return result;
 }
 
@@ -205,6 +246,17 @@ auto eppx_filter(Func func, const Container& container) {
     return result;
 }
 
+// Length function
+template<typename Container>
+auto eppx_len(const Container& container) -> size_t {
+    return container.size();
+}
+
+// String length specialization
+size_t eppx_len(const std::string& str) {
+    return str.length();
+}
+
 // Multi-argument min/max functions
 template<typename T, typename... Args>
 auto eppx_min(T first, Args... args) -> T {
@@ -218,13 +270,13 @@ auto eppx_max(T first, Args... args) -> T {
 
 // Container min/max functions
 template<typename Container>
-auto eppx_min(const Container& container) -> typename Container::value_type {
-    return container.empty() ? typename Container::value_type{} : *std::min_element(container.begin(), container.end());
+auto eppx_max(const Container& container) -> typename Container::value_type {
+    return *std::max_element(container.begin(), container.end());
 }
 
 template<typename Container>
-auto eppx_max(const Container& container) -> typename Container::value_type {
-    return container.empty() ? typename Container::value_type{} : *std::max_element(container.begin(), container.end());
+auto eppx_min(const Container& container) -> typename Container::value_type {
+    return *std::min_element(container.begin(), container.end());
 }
 
 // File I/O functions
@@ -438,6 +490,19 @@ public:
 template<typename FileType>
 EppxFileContextManager<FileType> eppx_with_file(FileType file_obj) {
     return EppxFileContextManager<FileType>(file_obj);
+}
+
+// String utility functions
+std::string eppx_upper(const std::string& s) {
+    std::string result = s;
+    std::transform(result.begin(), result.end(), result.begin(), ::toupper);
+    return result;
+}
+
+std::string eppx_lower(const std::string& s) {
+    std::string result = s;
+    std::transform(result.begin(), result.end(), result.begin(), ::tolower);
+    return result;
 }
 
 #endif // EPPX_BUILTINS_HPP
