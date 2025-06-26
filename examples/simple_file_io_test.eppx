@@ -1,0 +1,21 @@
+# Simple file I/O test - basic operations only
+print("Testing basic file I/O operations...")
+
+# Test basic open and write
+f = open("test.txt", "w")
+f.write("Hello, EPlusPlus!\n")
+f.write("This is a test file.\n")
+f.close()
+
+# Test reading the file
+f = open("test.txt", "r")
+content = f.read()
+print(content)
+f.close()
+
+# Test with statement (context manager) - single test
+with open("test2.txt", "w") as output_file:
+    output_file.write("Context manager test\n")
+    output_file.write("Automatically closes file\n")
+
+print("File I/O test completed!")

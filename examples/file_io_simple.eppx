@@ -1,0 +1,27 @@
+# Simple file I/O test - no conflicting variable names
+print("Testing file I/O operations...")
+
+# Test basic open and write
+f = open("test.txt", "w")
+f.write("Hello, EPlusPlus!")
+f.write("This is a test file.")
+f.close()
+
+# Test reading the file
+f = open("test.txt", "r")
+content = f.read()
+print(content)
+f.close()
+
+# Test with statement (context manager)
+with open("test2.txt", "w") as myfile:
+    myfile.write("Context manager test")
+    myfile.write("Automatically closes file")
+
+# Read using context manager with different variable name
+with open("test2.txt", "r") as readfile:
+    lines = readfile.readlines()
+    for line in lines:
+        print(line)
+
+print("File I/O test completed!")

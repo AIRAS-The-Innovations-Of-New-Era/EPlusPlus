@@ -13,6 +13,10 @@
 #include <functional>
 #include <type_traits>
 #include <iomanip>
+#include <fstream>
+#include <memory>
+#include <stdexcept>
+#include <fstream>
 
 // Forward declarations for eppx_variant (simplified for now)
 using eppx_variant = std::variant<long long, double, std::string, bool>;
@@ -43,7 +47,7 @@ std::string eppx_bin(long long n) {
         binary = (temp % 2 == 0 ? "0" : "1") + binary;
         temp /= 2;
     }
-    return "0b" + (n < 0 ? "-" : "") + binary;
+    return std::string("0b") + (n < 0 ? "-" : "") + binary;
 }
 
 std::string eppx_oct(long long n) {
@@ -199,6 +203,241 @@ auto eppx_filter(Func func, const Container& container) {
     Container result;
     std::copy_if(container.begin(), container.end(), std::back_inserter(result), func);
     return result;
+}
+
+// Multi-argument min/max functions
+template<typename T, typename... Args>
+auto eppx_min(T first, Args... args) -> T {
+    return std::min({first, static_cast<T>(args)...});
+}
+
+template<typename T, typename... Args>
+auto eppx_max(T first, Args... args) -> T {
+    return std::max({first, static_cast<T>(args)...});
+}
+
+// Container min/max functions
+template<typename Container>
+auto eppx_min(const Container& container) -> typename Container::value_type {
+    return container.empty() ? typename Container::value_type{} : *std::min_element(container.begin(), container.end());
+}
+
+template<typename Container>
+auto eppx_max(const Container& container) -> typename Container::value_type {
+    return container.empty() ? typename Container::value_type{} : *std::max_element(container.begin(), container.end());
+}
+
+// File I/O functions
+class EppxFile {
+private:
+    std::string filepath;
+    std::string mode;
+    std::fstream file_stream;
+    bool is_open;
+    std::streampos position;
+
+public:
+    EppxFile(const std::string& path, const std::string& file_mode) 
+        : filepath(path), mode(file_mode), is_open(false), position(0) {}
+
+    bool open() {
+        std::ios_base::openmode open_mode = std::ios_base::in;
+        
+        if (mode.find('w') != std::string::npos) {
+            open_mode = std::ios_base::out | std::ios_base::trunc;
+        } else if (mode.find('a') != std::string::npos) {
+            open_mode = std::ios_base::out | std::ios_base::app;
+        } else if (mode.find('r') != std::string::npos) {
+            open_mode = std::ios_base::in;
+        }
+        
+        if (mode.find('+') != std::string::npos) {
+            open_mode |= std::ios_base::in | std::ios_base::out;
+        }
+        
+        if (mode.find('b') != std::string::npos) {
+            open_mode |= std::ios_base::binary;
+        }
+
+        file_stream.open(filepath, open_mode);
+        is_open = file_stream.is_open();
+        return is_open;
+    }
+
+    std::string read(int size = -1) {
+        if (!is_open) {
+            throw std::runtime_error("I/O operation on closed file");
+        }
+        
+        std::string content;
+        if (size == -1) {
+            // Read entire file
+            file_stream.seekg(0, std::ios::end);
+            content.reserve(file_stream.tellg());
+            file_stream.seekg(0, std::ios::beg);
+            content.assign((std::istreambuf_iterator<char>(file_stream)),
+                          std::istreambuf_iterator<char>());
+        } else {
+            // Read specific number of characters
+            content.resize(size);
+            file_stream.read(&content[0], size);
+            content.resize(file_stream.gcount());
+        }
+        return content;
+    }
+
+    std::string readline(int size = -1) {
+        if (!is_open) {
+            throw std::runtime_error("I/O operation on closed file");
+        }
+        
+        std::string line;
+        std::getline(file_stream, line);
+        if (size != -1 && line.length() > size) {
+            line = line.substr(0, size);
+        }
+        return line + "\n"; // Python readline includes newline
+    }
+
+    std::vector<std::string> readlines(int hint = -1) {
+        if (!is_open) {
+            throw std::runtime_error("I/O operation on closed file");
+        }
+        
+        std::vector<std::string> lines;
+        std::string line;
+        int total_size = 0;
+        
+        while (std::getline(file_stream, line)) {
+            line += "\n";
+            if (hint != -1 && total_size + line.length() > hint) {
+                break;
+            }
+            lines.push_back(line);
+            total_size += line.length();
+        }
+        return lines;
+    }
+
+    int write(const std::string& data) {
+        if (!is_open) {
+            throw std::runtime_error("I/O operation on closed file");
+        }
+        
+        file_stream << data;
+        return data.length();
+    }
+
+    void writelines(const std::vector<std::string>& lines) {
+        for (const auto& line : lines) {
+            write(line);
+        }
+    }
+
+    void close() {
+        if (is_open) {
+            file_stream.close();
+            is_open = false;
+        }
+    }
+
+    void flush() {
+        if (is_open) {
+            file_stream.flush();
+        }
+    }
+
+    std::streampos seek(std::streamoff offset, std::ios_base::seekdir whence = std::ios_base::beg) {
+        if (!is_open) {
+            throw std::runtime_error("I/O operation on closed file");
+        }
+        
+        file_stream.seekg(offset, whence);
+        file_stream.seekp(offset, whence);
+        return file_stream.tellg();
+    }
+
+    std::streampos tell() {
+        if (!is_open) {
+            throw std::runtime_error("I/O operation on closed file");
+        }
+        return file_stream.tellg();
+    }
+
+    bool readable() const {
+        return is_open && (mode.find('r') != std::string::npos || mode.find('+') != std::string::npos);
+    }
+
+    bool writable() const {
+        return is_open && (mode.find('w') != std::string::npos || 
+                          mode.find('a') != std::string::npos || 
+                          mode.find('+') != std::string::npos);
+    }
+
+    bool seekable() const {
+        return is_open;
+    }
+
+    bool closed() const {
+        return !is_open;
+    }
+
+    std::string get_mode() const {
+        return mode;
+    }
+
+    std::string get_name() const {
+        return filepath;
+    }
+};
+
+// File I/O builtin functions
+std::shared_ptr<EppxFile> eppx_open(const std::string& filepath, 
+                                    const std::string& mode = "r",
+                                    int buffering = -1,
+                                    const std::string& encoding = "",
+                                    const std::string& errors = "strict",
+                                    const std::string& newline = "",
+                                    bool closefd = true) {
+    auto file_obj = std::make_shared<EppxFile>(filepath, mode);
+    if (!file_obj->open()) {
+        if (mode.find('r') != std::string::npos) {
+            throw std::runtime_error("No such file or directory: '" + filepath + "'");
+        } else {
+            throw std::runtime_error("Could not open file: '" + filepath + "'");
+        }
+    }
+    return file_obj;
+}
+
+// Context manager support for with statements
+template<typename FileType>
+class EppxFileContextManager {
+private:
+    FileType file_obj;
+    bool should_close;
+
+public:
+    EppxFileContextManager(FileType f) : file_obj(f), should_close(true) {}
+
+    FileType& __enter__() {
+        return file_obj;
+    }
+
+    bool __exit__(const std::string& exc_type = "", 
+                  const std::string& exc_val = "", 
+                  const std::string& exc_tb = "") {
+        if (should_close && file_obj) {
+            file_obj->close();
+        }
+        return false; // Don't suppress exceptions
+    }
+};
+
+// Helper function to create context manager
+template<typename FileType>
+EppxFileContextManager<FileType> eppx_with_file(FileType file_obj) {
+    return EppxFileContextManager<FileType>(file_obj);
 }
 
 #endif // EPPX_BUILTINS_HPP

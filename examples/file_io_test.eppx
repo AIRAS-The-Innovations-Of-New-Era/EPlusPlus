@@ -1,0 +1,27 @@
+# Simple file I/O test
+print("Testing file I/O operations...")
+
+# Test basic open and write
+f = open("test.txt", "w")
+f.write("Hello, EPlusPlus!\n")
+f.write("This is a test file.\n")
+f.close()
+
+# Test reading the file
+f = open("test.txt", "r")
+content = f.read()
+print(content)
+f.close()
+
+# Test with statement (context manager) - using different variable names
+with open("test2.txt", "w") as writer:
+    writer.write("Context manager test\n")
+    writer.write("Automatically closes file\n")
+
+# Read using context manager with different variable name
+with open("test2.txt", "r") as reader:
+    lines = reader.readlines()
+    for line in lines:
+        print(line)
+
+print("File I/O test completed!")

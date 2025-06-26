@@ -51,6 +51,10 @@ pub enum Statement {
         finally_body: Option<Vec<AstNode>>,
     },
     Raise(Option<Expression>),
+    With {
+        items: Vec<WithItem>,
+        body: Vec<AstNode>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -180,4 +184,10 @@ pub struct ExceptHandler {
     pub exception_type: Option<Expression>,
     pub name: Option<String>,
     pub body: Vec<AstNode>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WithItem {
+    pub context_expr: Expression,
+    pub optional_vars: Option<String>,
 }

@@ -235,9 +235,9 @@ This document tracks the implementation progress of Python syntax and features i
 
 **7. File I/O:**
 
-- [ ] `open()`
-- [ ] `read()`, `write()`, `close()`
-- [ ] `with open(...) as f:`
+- [x] `open()` (Implemented: full Python-compatible file opening with modes)
+- [x] `read()`, `write()`, `close()` (Implemented: all basic file operations)
+- [x] `with open(...) as f:` (Implemented: context manager support)
 
 **8. Comprehensions:**
 
