@@ -1,5 +1,5 @@
 // Codegen module placeholder
-use crate::ast::{AstNode, Expression, Statement, BinOp, UnaryOp, AssignmentOperator, Decorator, Argument};
+use crate::ast::{AstNode, Expression, Statement, BinOp, UnaryOp, AssignmentOperator};
 use std::collections::{HashMap, HashSet};
 
 // Placeholder for SymbolTable, FunctionTable, and TypeMap
@@ -209,13 +209,33 @@ fn generate_statement_list_cpp(
                 }
             }
             AstNode::Statement(Statement::Print(expr)) => {
-                let expr_cpp = emit_expression_cpp(expr, symbol_table, function_table, type_map)?;
-                // Add parentheses around binary operations to avoid precedence issues
-                let safe_expr = match &**expr {
-                    Expression::BinaryOperation { .. } => format!("({})", expr_cpp),
-                    _ => expr_cpp,
-                };
-                cpp_out.push_str(&format!("    std::cout << {} << std::endl;\n", safe_expr));
+                match &**expr {
+                    Expression::TupleLiteral(args) => {
+                        // Multiple arguments - print each separated by space
+                        cpp_out.push_str("    std::cout");
+                        for (i, arg) in args.iter().enumerate() {
+                            if i > 0 {
+                                cpp_out.push_str(" << \" \"");
+                            }
+                            let arg_cpp = emit_expression_cpp(arg, symbol_table, function_table, type_map)?;
+                            let safe_arg = match arg {
+                                Expression::BinaryOperation { .. } => format!("({})", arg_cpp),
+                                _ => arg_cpp,
+                            };
+                            cpp_out.push_str(&format!(" << {}", safe_arg));
+                        }
+                        cpp_out.push_str(" << std::endl;\n");
+                    }
+                    _ => {
+                        // Single argument
+                        let expr_cpp = emit_expression_cpp(expr, symbol_table, function_table, type_map)?;
+                        let safe_expr = match &**expr {
+                            Expression::BinaryOperation { .. } => format!("({})", expr_cpp),
+                            _ => expr_cpp,
+                        };
+                        cpp_out.push_str(&format!("    std::cout << {} << std::endl;\n", safe_expr));
+                    }
+                }
             }
             AstNode::Statement(Statement::If { condition, then_body, elifs, else_body }) => {
                 let mut chain = String::new();
@@ -336,6 +356,60 @@ fn generate_statement_list_cpp(
             AstNode::Statement(Statement::Pass) => {
                 cpp_out.push_str("    ; // pass statement
 ");
+            }
+            AstNode::Statement(Statement::TryExcept { try_body, excepts, else_body, finally_body }) => {
+                let mut try_code = String::new();
+                try_code.push_str("    try {\n");
+                let mut block_symbol_table = symbol_table.fork();
+                block_symbol_table.enter_scope();
+                try_code.push_str(&indent_code(&generate_statement_list_cpp(try_body, declared_vars, &mut block_symbol_table, function_table, type_map)?));
+                block_symbol_table.exit_scope();
+                try_code.push_str("    }\n");
+                for except in excepts {
+                    try_code.push_str("    catch (");
+                    if let Some(ref _exc_type) = except.exception_type {
+                        try_code.push_str("std::exception& eppx_exc"); // Use different parameter name
+                    } else {
+                        try_code.push_str("std::exception& eppx_exc");
+                    }
+                    try_code.push_str(") {\n");
+                    let mut except_symbol_table = symbol_table.fork();
+                    except_symbol_table.enter_scope();
+                    if let Some(ref name) = except.name {
+                        try_code.push_str(&format!("        auto {} = eppx_exc.what();\n", name));
+                    }
+                    try_code.push_str(&indent_code(&generate_statement_list_cpp(&except.body, declared_vars, &mut except_symbol_table, function_table, type_map)?));
+                    except_symbol_table.exit_scope();
+                    try_code.push_str("    }\n");
+                }
+                if let Some(else_body_nodes) = else_body {
+                    try_code.push_str("    // else block\n");
+                    let mut else_symbol_table = symbol_table.fork();
+                    else_symbol_table.enter_scope();
+                    try_code.push_str(&indent_code(&generate_statement_list_cpp(&else_body_nodes, declared_vars, &mut else_symbol_table, function_table, type_map)?));
+                    else_symbol_table.exit_scope();
+                }
+                if let Some(finally_body_nodes) = finally_body {
+                    try_code.push_str("    // finally block\n");
+                    let mut finally_symbol_table = symbol_table.fork();
+                    finally_symbol_table.enter_scope();
+                    try_code.push_str(&indent_code(&generate_statement_list_cpp(&finally_body_nodes, declared_vars, &mut finally_symbol_table, function_table, type_map)?));
+                    finally_symbol_table.exit_scope();
+                }
+                cpp_out.push_str(&try_code);
+            }
+            AstNode::Statement(Statement::Raise(expr)) => {
+                if let Some(expr) = expr {
+                    let exc_cpp = emit_expression_cpp(&expr, symbol_table, function_table, type_map)?;
+                    // Convert non-string expressions to strings for std::runtime_error
+                    let string_exc = match expr {
+                        Expression::StringLiteral(_) => exc_cpp,
+                        _ => format!("std::to_string({})", exc_cpp),
+                    };
+                    cpp_out.push_str(&format!("    throw std::runtime_error({});\n", string_exc));
+                } else {
+                    cpp_out.push_str("    throw std::runtime_error(\"E++ exception\");\n");
+                }
             }
             _ => {}
         }
@@ -702,20 +776,35 @@ fn _generate_cpp_code_with_vars(
 
                 // Add decorator wrapper comments/code
                 cpp_out.push_str(&decorator_wrappers);
-                cpp_out.push_str(&format!("{}auto {}({}) {{
+                
+                // Determine return type based on function body analysis
+                let return_type = if has_explicit_return_type(body) {
+                    analyze_return_type(body)
+                } else {
+                    "long long".to_string() // Default return type for E++ functions
+                };
+                
+                cpp_out.push_str(&format!("{}{} {}({}) {{
 ",
- template_clause, name, param_list_cpp));
+ template_clause, return_type, name, param_list_cpp));
                 cpp_out.push_str(&indent_code(&body_cpp));
                 let has_return = body.iter().any(|node| matches!(node, AstNode::Statement(Statement::Return(_))));
                 if !has_return {
-                    // Default return for void-like functions or if E++ allows implicit None return
-                    // C++ functions returning auto must have a return statement.
-                    // For simplicity, if E++ implies returning 0 or void:
-                    // This might need adjustment based on E++ function semantics.
-                    // If it's truly auto, it must deduce from a return.
-                    // Let's assume functions implicitly return 0 if no other return.
-                    cpp_out.push_str("    return 0; // Default return if none explicit
-");
+                    // Default return for functions without explicit return
+                    if return_type == "void" {
+                        // No return needed for void functions
+                    } else if return_type == "long long" {
+                        cpp_out.push_str("    return 0LL; // Default return if none explicit\n");
+                    } else if return_type == "double" {
+                        cpp_out.push_str("    return 0.0; // Default return if none explicit\n");
+                    } else if return_type == "std::string" {
+                        cpp_out.push_str("    return \"\"; // Default return if none explicit\n");
+                    } else if return_type == "bool" {
+                        cpp_out.push_str("    return false; // Default return if none explicit\n");
+                    } else {
+                        // For auto return type, don't add default return - let compiler handle it
+                        // This avoids conflicts when auto deduction is involved
+                    }
                 }
                 cpp_out.push_str("}
 
@@ -1290,153 +1379,120 @@ fn _emit_cpp_for_variable_declaration(
     Ok(declaration)
 }
 
-// Helper functions for code generation
+// Helper functions for function analysis
+fn has_explicit_return_type(body: &[AstNode]) -> bool {
+    // Simple heuristic: if the function has any return statements with expressions
+    body.iter().any(|node| {
+        if let AstNode::Statement(Statement::Return(Some(_))) = node {
+            true
+        } else {
+            false
+        }
+    })
+}
 
-fn infer_cpp_type_for_static_member(expr: &Expression) -> String {
-    match expr {
+fn analyze_return_type(body: &[AstNode]) -> String {
+    // Analyze return statements to determine return type
+    for node in body {
+        if let AstNode::Statement(Statement::Return(Some(expr))) = node {
+            return match &**expr {
+                Expression::IntegerLiteral(_) => "long long".to_string(),
+                Expression::FloatLiteral(_) => "double".to_string(),
+                Expression::StringLiteral(_) => "std::string".to_string(),
+                Expression::BooleanLiteral(_) => "bool".to_string(),
+                Expression::NoneLiteral => "std::nullptr_t".to_string(),
+                _ => "auto".to_string(),
+            };
+        }
+    }
+    
+    // If no explicit return, use auto - but add proper default return
+    "auto".to_string()
+}
+
+fn generate_decorator_wrappers(_decorators: &[crate::ast::Decorator]) -> Result<String, String> {
+    // Placeholder for decorator wrapper generation
+    Ok("".to_string())
+}
+
+fn infer_cpp_type_for_static_member(value: &Expression) -> String {
+    match value {
         Expression::IntegerLiteral(_) => "long long".to_string(),
         Expression::FloatLiteral(_) => "double".to_string(),
         Expression::StringLiteral(_) => "std::string".to_string(),
         Expression::BooleanLiteral(_) => "bool".to_string(),
+        Expression::NoneLiteral => "std::nullptr_t".to_string(),
         _ => "auto".to_string(),
     }
 }
 
-fn emit_method_cpp(method_name: &str, params: &[String], _body: &[AstNode]) -> Result<String, String> {
-    let params_cpp = params.iter().map(|p| format!("auto {}", p)).collect::<Vec<String>>().join(", ");
-    Ok(format!("auto {}({});", method_name, params_cpp))
-}
-
-fn generate_decorator_wrappers(decorators: &[Decorator]) -> Result<String, String> {
-    let mut wrapper_code = String::new();
-    
-    for decorator in decorators {
-        match decorator {
-            Decorator::Simple(name) => {
-                wrapper_code.push_str(&format!("// @{} decorator\n", name));
-                match name.as_str() {
-                    "timer" => {
-                        wrapper_code.push_str("// Timer decorator: measures execution time\n");
+fn infer_return_type_from_body(body: &[AstNode], method_name: &str, _base: &Option<String>) -> String {
+    // Analyze method body to determine return type
+    for node in body {
+        if let AstNode::Statement(Statement::Return(Some(expr))) = node {
+            return match &**expr {
+                Expression::IntegerLiteral(_) => "long long".to_string(),
+                Expression::FloatLiteral(_) => "double".to_string(),
+                Expression::StringLiteral(_) => "std::string".to_string(),
+                Expression::BooleanLiteral(_) => "bool".to_string(),
+                Expression::NoneLiteral => "std::nullptr_t".to_string(),
+                // For complex expressions, use a generic type instead of auto
+                // since virtual functions can't have auto return type
+                Expression::BinaryOperation { .. } => {
+                    // Most binary operations in E++ result in strings or numbers
+                    // For string concatenation, assume string; for arithmetic, assume long long
+                    if method_name == "__str__" || is_likely_string_expression(expr) {
+                        "std::string".to_string()
+                    } else {
+                        "long long".to_string()
                     }
-                    "staticmethod" => {
-                        wrapper_code.push_str("// Static method decorator\n");
+                },
+                Expression::Call { .. } => {
+                    // Function calls - assume they return the expected type for this method
+                    if method_name == "__str__" {
+                        "std::string".to_string()
+                    } else {
+                        "long long".to_string()
                     }
-                    "property" => {
-                        wrapper_code.push_str("// Property decorator\n");
+                },
+                _ => {
+                    // For other expressions, use a sensible default
+                    if method_name == "__str__" {
+                        "std::string".to_string()
+                    } else {
+                        "long long".to_string()
                     }
-                    "cache" => {
-                        wrapper_code.push_str("// Cache decorator: memoizes function results\n");
-                    }
-                    _ => {
-                        wrapper_code.push_str(&format!("// Unknown decorator: {}\n", name));
-                    }
-                }
-            }            Decorator::WithArgs(name, args) => {
-                wrapper_code.push_str(&format!("// @{}(...) decorator with {} arguments\n", name, args.len()));
-                  // Generate argument info for debugging
-                #[allow(unused_variables)]
-                for (i, arg) in args.iter().enumerate() {
-                    match arg {
-                        Argument::Positional(_expr) => {
-                            wrapper_code.push_str(&format!("// Arg {}: positional\n", i));
-                        }
-                        Argument::Keyword(name, _expr) => {
-                            wrapper_code.push_str(&format!("// Arg {}: {}=<value>\n", i, name));
-                        }
-                    }
-                }
-                
-                match name.as_str() {
-                    "retry" => {
-                        wrapper_code.push_str("// Retry decorator: retries function on failure\n");
-                        // Look for 'times' keyword argument
-                        for arg in args {
-                            if let Argument::Keyword(param_name, _expr) = arg {
-                                if param_name == "times" {
-                                    wrapper_code.push_str("// Found 'times' parameter for retry\n");
-                                }
-                            }
-                        }
-                    }
-                    _ => {
-                        wrapper_code.push_str(&format!("// Unknown decorator with args: {}\n", name));
-                    }
-                }
-            }
+                },
+            };
         }
     }
     
-    Ok(wrapper_code)
+    // Special method names
+    if method_name == "__str__" {
+        "std::string".to_string()
+    } else {
+        "void".to_string()
+    }
 }
 
-// Helper to emit assignment target (identifier or attribute chain)
-fn emit_assignment_target_cpp(expr: &Expression) -> Result<String, String> {
+// Helper function to guess if an expression is likely to result in a string
+fn is_likely_string_expression(expr: &Expression) -> bool {
     match expr {
-        Expression::Identifier(name) => Ok(name.clone()),
-        Expression::AttributeAccess { object, attr } => {
-            if let Expression::Identifier(name) = &**object {
-                if name == "self" {
-                    return Ok(format!("this->{}", attr));
-                }
-                if name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
-                    return Ok(format!("{}::{}", name, attr));
-                }
+        Expression::StringLiteral(_) => true,
+        Expression::BinaryOperation { left, op, right } => {
+            match op {
+                crate::ast::BinOp::Add => {
+                    // String concatenation if either operand is a string
+                    is_likely_string_expression(left) || is_likely_string_expression(right)
+                },
+                _ => false,
             }
-            let obj_cpp = emit_assignment_target_cpp(object)?;
-            Ok(format!("{}.{}", obj_cpp, attr))
-        }
-        _ => Err("Invalid assignment target for codegen".to_string()),
+        },
+        Expression::Call { callee, .. } => {
+            // str() function calls result in strings
+            matches!(callee.as_ref(), Expression::Identifier(name) if name == "str")
+        },
+        _ => false,
     }
-}
-
-// Helper function to infer return type from method body
-fn infer_return_type_from_body(method_body: &[AstNode], method_name: &str, base: &Option<String>) -> String {
-    // Check if method has return statements
-    let return_expressions: Vec<&Expression> = method_body.iter()
-        .filter_map(|node| {
-            if let AstNode::Statement(Statement::Return(Some(expr))) = node {
-                Some(expr.as_ref())
-            } else {
-                None
-            }
-        })
-        .collect();
-    
-    if return_expressions.is_empty() {
-        return "void".to_string();
-    }
-      // Analyze return expressions to determine type
-    for expr in &return_expressions {
-        match expr {
-            Expression::StringLiteral(_) => return "std::string".to_string(),
-            Expression::BinaryOperation { .. } => {
-                // For string concatenation operations in __str__, return std::string
-                if method_name == "__str__" {
-                    return "std::string".to_string();
-                }
-                // For arithmetic operations, assume numeric
-                return "long long".to_string();
-            },
-            Expression::IntegerLiteral(_) => {
-                // For virtual methods, we need consistent types
-                if base.is_some() || method_name == "area" || method_name == "speak" {
-                    // Check if this might be a string-returning method by name
-                    if method_name == "__str__" || method_name == "speak" {
-                        return "std::string".to_string();
-                    }
-                }
-                return "long long".to_string();
-            },            Expression::FloatLiteral(_) => return "double".to_string(),
-            _ => {
-                // Default fallback
-                if method_name == "__str__" || method_name == "speak" {
-                    return "std::string".to_string();
-                }
-                return "long long".to_string();
-            }
-        }
-    }
-    
-    "void".to_string()
 }
 

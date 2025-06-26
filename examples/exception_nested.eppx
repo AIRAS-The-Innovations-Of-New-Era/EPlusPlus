@@ -1,0 +1,17 @@
+# Nested try/except/finally test
+
+def may_fail(x):
+    if x == 0:
+        raise "Zero!"
+    return 100 // x
+
+try:
+    try:
+        print(may_fail(0))
+    except as e:
+        print("Inner caught:", e)
+        raise "Outer!"
+except as e:
+    print("Outer caught:", e)
+finally:
+    print("Done.")

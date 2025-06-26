@@ -1,0 +1,17 @@
+# Test exception type matching in E++
+
+def raise_value():
+    raise 123
+
+def raise_str():
+    raise "error!"
+
+try:
+    raise_value()
+except as e:
+    print("Caught int exception:", e)
+
+try:
+    raise_str()
+except as e:
+    print("Caught string exception:", e)

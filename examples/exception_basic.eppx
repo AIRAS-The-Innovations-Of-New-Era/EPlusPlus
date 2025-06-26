@@ -1,0 +1,18 @@
+# Basic try/except/else/finally/raise test for E++
+
+def foo(x):
+    if x < 0:
+        raise "Negative!"
+    return x * 2
+
+try:
+    print(foo(10))
+    print(foo(-5))
+except as e:
+    print("Caught exception:", e)
+else:
+    print("No exception occurred!")
+finally:
+    print("Finally block executed.")
+
+print("After try/except block.")

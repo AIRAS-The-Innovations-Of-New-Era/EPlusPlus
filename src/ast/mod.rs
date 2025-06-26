@@ -44,6 +44,13 @@ pub enum Statement {
         base: Option<String>, // Optional base class name for inheritance
         body: Vec<AstNode>, // Contains assignments (attributes) and function definitions (methods, including __init__)
     },
+    TryExcept {
+        try_body: Vec<AstNode>,
+        excepts: Vec<ExceptHandler>,
+        else_body: Option<Vec<AstNode>>,
+        finally_body: Option<Vec<AstNode>>,
+    },
+    Raise(Option<Expression>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -166,4 +173,11 @@ pub enum BinOp {
     // Membership
     In,
     NotIn,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExceptHandler {
+    pub exception_type: Option<Expression>,
+    pub name: Option<String>,
+    pub body: Vec<AstNode>,
 }
