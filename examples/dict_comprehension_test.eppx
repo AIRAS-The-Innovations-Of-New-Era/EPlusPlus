@@ -1,0 +1,18 @@
+# Dictionary comprehension examples
+words = ["hello", "world", "python", "programming"]
+word_lengths = {word: len(word) for word in words}
+print(word_lengths)
+
+# Dictionary comprehension with condition
+long_words = {word: len(word) for word in words if len(word) > 5}
+print(long_words)
+
+# Dictionary comprehension with transformation
+uppercase_words = {word.upper(): word.lower() for word in words}
+print(uppercase_words)
+
+# Dictionary comprehension from two lists
+keys = ["a", "b", "c"]
+values = [1, 2, 3]
+pairs = {k: v for k, v in zip(keys, values)}
+print(pairs)

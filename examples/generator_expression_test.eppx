@@ -1,0 +1,18 @@
+# Generator expression examples
+numbers = [1, 2, 3, 4, 5]
+
+# Generator expression (similar to list comprehension but generates items on-demand)
+squared_gen = (x * x for x in numbers)
+print(list(squared_gen))
+
+# Generator expression with condition
+even_gen = (x for x in range(20) if x % 2 == 0)
+print(list(even_gen))
+
+# Generator expression used with sum()
+sum_of_squares = sum(x * x for x in range(10))
+print(sum_of_squares)
+
+# Generator expression used with max()
+max_square = max(x * x for x in range(1, 6))
+print(max_square)

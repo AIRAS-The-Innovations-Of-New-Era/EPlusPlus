@@ -1,0 +1,17 @@
+# Set comprehension examples
+numbers = [1, 2, 2, 3, 3, 4, 4, 5]
+unique_squares = {x * x for x in numbers}
+print(unique_squares)
+
+# Set comprehension with condition
+even_numbers = {x for x in range(20) if x % 2 == 0}
+print(even_numbers)
+
+# Set comprehension with string processing
+words = ["hello", "world", "hello", "python"]
+first_letters = {word[0] for word in words}
+print(first_letters)
+
+# Set comprehension with mathematical operations
+perfect_squares = {x * x for x in range(1, 11)}
+print(perfect_squares)

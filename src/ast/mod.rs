@@ -124,12 +124,24 @@ pub enum Expression {
         params: Vec<String>,
         body: Box<Expression>,
     },
+    // Comprehensions
     ListComprehension {
         element: Box<Expression>,
-        var: String,
-        iter: Box<Expression>,
-        condition: Option<Box<Expression>>,
-    }, // For list comprehensions (future)
+        comprehension: Comprehension,
+    },
+    DictComprehension {
+        key: Box<Expression>,
+        value: Box<Expression>,
+        comprehension: Comprehension,
+    },
+    SetComprehension {
+        element: Box<Expression>,
+        comprehension: Comprehension,
+    },
+    GeneratorExpression {
+        element: Box<Expression>,
+        comprehension: Comprehension,
+    },
     Call {
         callee: Box<Expression>,
         args: Vec<Expression>,
@@ -137,6 +149,10 @@ pub enum Expression {
     AttributeAccess {
         object: Box<Expression>,
         attr: String,
+    },
+    Index {
+        object: Box<Expression>,
+        index: Box<Expression>,
     },
 }
 
@@ -190,4 +206,12 @@ pub struct ExceptHandler {
 pub struct WithItem {
     pub context_expr: Expression,
     pub optional_vars: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Comprehension {
+    pub target: Vec<String>,    // Variable names (e.g., ["k", "v"] in "for k, v in items()")
+    pub iter: Box<Expression>,  // Iterable expression (e.g., "range(10)")
+    pub ifs: Vec<Expression>,   // Optional if conditions (e.g., "if x % 2 == 0")
+    pub is_async: bool,         // For future async comprehensions
 }
