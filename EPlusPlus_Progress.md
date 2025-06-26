@@ -241,10 +241,10 @@ This document tracks the implementation progress of Python syntax and features i
 
 **8. Comprehensions:**
 
-- [ ] List comprehensions
-- [ ] Dictionary comprehensions
-- [ ] Set comprehensions
-- [ ] Generator expressions
+- [x] List comprehensions
+- [x] Dictionary comprehensions
+- [x] Set comprehensions
+- [x] Generator expressions
 
 **9. Generators and Iterators:**
 
