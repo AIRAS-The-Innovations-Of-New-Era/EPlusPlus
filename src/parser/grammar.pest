@@ -3,7 +3,7 @@ COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
 
 program = { SOI ~ ( (statement | function_definition | class_definition) ~ (WHITESPACE* ~ COMMENT*) )* ~ EOI }
 
-statement = { assignment | print_statement | if_statement | while_statement | for_statement | function_definition | class_definition | return_statement | expression_statement | break_statement | continue_statement | pass_statement | try_statement | raise_statement }
+statement = { assignment | print_statement | if_statement | while_statement | for_statement | function_definition | class_definition | return_statement | expression_statement | break_statement | continue_statement | pass_statement | try_statement | raise_statement | with_statement }
 expression_statement = { expression }
 
 assignment_operator = @{ "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "//=" | "&=" | "|=" | "^=" | ">>=" | "<<=" }
@@ -110,7 +110,7 @@ double_quoted_char = { escape_sequence | !("\"" | "\\") ~ ANY }
 single_quoted_char = { escape_sequence | !("'" | "\\") ~ ANY }
 escape_sequence = { "\\" ~ ("n" | "t" | "r" | "b" | "f" | "v" | "0" | "\\" | "\"" | "'" | "a") }
 // Keywords that should not be parsed as identifiers - must be complete words
-keyword = @{ ("if" | "elif" | "else" | "while" | "for" | "def" | "class" | "return" | "break" | "continue" | "pass" | "try" | "except" | "finally" | "raise" | "and" | "or" | "not" | "in" | "is" | "None" | "True" | "False" | "lambda" | "as" | "print") ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword = @{ ("if" | "elif" | "else" | "while" | "for" | "def" | "class" | "return" | "break" | "continue" | "pass" | "try" | "except" | "finally" | "raise" | "and" | "or" | "not" | "in" | "is" | "None" | "True" | "False" | "lambda" | "as" | "print" | "with") ~ !(ASCII_ALPHANUMERIC | "_") }
 
 identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 
@@ -142,3 +142,6 @@ except_clause = { "except" ~ (expression)? ~ ("as" ~ identifier)? ~ ":" ~ (WHITE
 try_else_clause = { "else" ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ block }
 finally_clause = { "finally" ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ block }
 raise_statement = { "raise" ~ expression? }
+
+with_statement = { "with" ~ with_item ~ ("," ~ with_item)* ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ block }
+with_item = { expression ~ ("as" ~ identifier)? }

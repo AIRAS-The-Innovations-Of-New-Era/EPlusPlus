@@ -4,7 +4,7 @@ use pest::iterators::{Pair, Pairs}; // Added Pairs
 use std::fs;
 use std::path::Path;
 
-use crate::ast::{AstNode, Expression, Statement, BinOp, UnaryOp, AssignmentOperator, Decorator, Argument}; // Added Decorator and Argument
+use crate::ast::{AstNode, Expression, Statement, BinOp, UnaryOp, AssignmentOperator, Decorator, Argument, WithItem}; // Added Decorator, Argument, and WithItem
 
 #[derive(Parser)]
 #[grammar = "parser/grammar.pest"]
@@ -983,6 +983,49 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                 None
             };
             Ok(AstNode::Statement(Statement::Raise(expr)))
+        }
+        Rule::with_statement => {
+            let mut with_inner = specific_statement_pair.into_inner();
+            let mut items = Vec::new();
+            let mut body = Vec::new();
+            
+            // Parse with items first
+            while let Some(pair) = with_inner.next() {
+                match pair.as_rule() {
+                    Rule::with_item => {
+                        let mut item_inner = pair.into_inner();
+                        let context_expr = build_ast_from_expression(item_inner.next().unwrap())?;
+                        let optional_vars = if let Some(var_pair) = item_inner.next() {
+                            Some(var_pair.as_str().to_string())
+                        } else {
+                            None
+                        };
+                        items.push(crate::ast::WithItem { context_expr, optional_vars });
+                    }
+                    Rule::block => {
+                        // Parse the block body - follow the same pattern as other statements
+                        for block_inner in pair.into_inner() {
+                            match block_inner.as_rule() {
+                                Rule::indented_statements => {
+                                    for stmt_pair in block_inner.into_inner() {
+                                        if matches!(stmt_pair.as_rule(), Rule::statement | Rule::function_definition | Rule::class_definition) {
+                                            body.push(build_ast_from_statement(stmt_pair)?);
+                                        }
+                                    }
+                                }
+                                Rule::statement | Rule::function_definition | Rule::class_definition => {
+                                    body.push(build_ast_from_statement(block_inner)?);
+                                }
+                                _ => { /* Skip INDENT, DEDENT, WHITESPACE, COMMENT */ }
+                            }
+                        }
+                        break; // Found the block, we're done
+                    }
+                    _ => {} // Ignore whitespace and comments
+                }
+            }
+            
+            Ok(AstNode::Statement(Statement::With { items, body }))
         }
         _ => Err(format!(
             "Unhandled specific statement rule: {:?}\nContent: '{}'",
