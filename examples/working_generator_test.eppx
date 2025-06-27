@@ -1,0 +1,44 @@
+# Simplified comprehensive generator test
+
+def simple_counter(max):
+    count = 0
+    while count < max:
+        yield count
+        count = count + 1
+
+print("=== Testing Basic Generator ===")
+counter = simple_counter(5)
+for num in counter:
+    print(num)
+
+def squares_generator(n):
+    i = 0
+    while i < n:
+        yield i * i
+        i = i + 1
+
+print("=== Testing Squares Generator ===")
+for square in squares_generator(4):
+    print(square)
+
+def fibonacci_gen(count):
+    a = 0
+    b = 1
+    yielded = 0
+    while yielded < count:
+        yield a
+        temp = a
+        a = b
+        b = temp + b
+        yielded = yielded + 1
+
+print("=== Testing Fibonacci Generator ===")
+fib = fibonacci_gen(6)
+for num in fib:
+    print(num)
+
+print("=== Testing Generator Expressions ===")
+numbers = [1, 2, 3, 4]
+squared_gen = (x * x for x in numbers)
+for val in squared_gen:
+    print(val)

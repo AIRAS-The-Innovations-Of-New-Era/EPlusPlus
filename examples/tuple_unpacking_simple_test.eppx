@@ -1,0 +1,12 @@
+# Simple tuple unpacking test
+data = [1, 2, 3]
+
+# Test simple for loop first
+for item in data:
+    print(item)
+
+# Test tuple unpacking (this should work with current grammar)
+pairs = [(1, "a"), (2, "b"), (3, "c")]
+for x, y in pairs:
+    print(x)
+    print(y)

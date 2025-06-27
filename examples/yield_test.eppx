@@ -1,0 +1,36 @@
+# Test yield statement and generator functions
+
+def simple_generator():
+    yield 1
+    yield 2
+    yield 3
+
+def countdown(n):
+    while n > 0:
+        yield n
+        n = n - 1
+
+def fibonacci(limit):
+    a = 0
+    b = 1
+    while a < limit:
+        yield a
+        temp = a
+        a = b
+        b = temp + b
+
+# Test simple generator
+print("Simple generator:")
+gen = simple_generator()
+for value in gen:
+    print(value)
+
+# Test countdown generator
+print("Countdown from 5:")
+for num in countdown(5):
+    print(num)
+
+# Test fibonacci generator
+print("Fibonacci numbers up to 20:")
+for fib in fibonacci(20):
+    print(fib)

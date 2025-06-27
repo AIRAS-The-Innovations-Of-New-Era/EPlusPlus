@@ -18,8 +18,156 @@
 #include <stdexcept>
 #include <fstream>
 
-// Forward declarations for eppx_variant (simplified for now)
-using eppx_variant = std::variant<long long, double, std::string, bool>;
+// Forward declaration for recursive variant
+struct eppx_variant;
+
+// Basic variant type for E++ values - recursive to support nested lists
+using eppx_variant_base = std::variant<long long, std::string, double, bool, std::vector<eppx_variant>>;
+
+struct eppx_variant : public eppx_variant_base {
+    using eppx_variant_base::eppx_variant_base;
+    using eppx_variant_base::operator=;
+};
+
+// Helper functions for variant conversion
+inline double variant_to_double(const eppx_variant& v) {
+    if (std::holds_alternative<double>(v)) {
+        return std::get<double>(v);
+    } else if (std::holds_alternative<long long>(v)) {
+        return static_cast<double>(std::get<long long>(v));
+    } else if (std::holds_alternative<bool>(v)) {
+        return std::get<bool>(v) ? 1.0 : 0.0;
+    }
+    return 0.0;
+}
+
+inline long long variant_to_ll(const eppx_variant& v) {
+    if (std::holds_alternative<long long>(v)) {
+        return std::get<long long>(v);
+    } else if (std::holds_alternative<double>(v)) {
+        return static_cast<long long>(std::get<double>(v));
+    } else if (std::holds_alternative<bool>(v)) {
+        return std::get<bool>(v) ? 1LL : 0LL;
+    }
+    return 0LL;
+}
+
+inline std::string variant_to_string(const eppx_variant& v) {
+    if (std::holds_alternative<std::string>(v)) {
+        return std::get<std::string>(v);
+    } else if (std::holds_alternative<long long>(v)) {
+        return std::to_string(std::get<long long>(v));
+    } else if (std::holds_alternative<double>(v)) {
+        return std::to_string(std::get<double>(v));
+    } else if (std::holds_alternative<bool>(v)) {
+        return std::get<bool>(v) ? "True" : "False";
+    }
+    return "";
+}
+
+inline bool variant_to_bool(const eppx_variant& v) {
+    if (std::holds_alternative<bool>(v)) {
+        return std::get<bool>(v);
+    } else if (std::holds_alternative<long long>(v)) {
+        return std::get<long long>(v) != 0;
+    } else if (std::holds_alternative<double>(v)) {
+        return std::get<double>(v) != 0.0;
+    } else if (std::holds_alternative<std::string>(v)) {
+        return !std::get<std::string>(v).empty();
+    } else if (std::holds_alternative<std::vector<eppx_variant>>(v)) {
+        return !std::get<std::vector<eppx_variant>>(v).empty();
+    }
+    return false;
+}
+
+// Output operator for eppx_variant
+std::ostream& operator<<(std::ostream& os, const eppx_variant& var) {
+    std::visit([&os](const auto& value) {
+        os << value;
+    }, var);
+    return os;
+}
+
+// Arithmetic operators for eppx_variant
+eppx_variant operator*(const eppx_variant& left, const eppx_variant& right) {
+    if (std::holds_alternative<long long>(left) && std::holds_alternative<long long>(right)) {
+        return std::get<long long>(left) * std::get<long long>(right);
+    } else if (std::holds_alternative<double>(left) || std::holds_alternative<double>(right)) {
+        return variant_to_double(left) * variant_to_double(right);
+    }
+    return 0LL; // fallback
+}
+
+eppx_variant operator%(const eppx_variant& left, const eppx_variant& right) {
+    long long l = variant_to_ll(left);
+    long long r = variant_to_ll(right);
+    return l % r;
+}
+
+eppx_variant operator+(const eppx_variant& left, const eppx_variant& right) {
+    if (std::holds_alternative<long long>(left) && std::holds_alternative<long long>(right)) {
+        return std::get<long long>(left) + std::get<long long>(right);
+    } else if (std::holds_alternative<double>(left) || std::holds_alternative<double>(right)) {
+        return variant_to_double(left) + variant_to_double(right);
+    } else if (std::holds_alternative<std::string>(left) || std::holds_alternative<std::string>(right)) {
+        return variant_to_string(left) + variant_to_string(right);
+    }
+    return 0LL; // fallback
+}
+
+eppx_variant operator-(const eppx_variant& left, const eppx_variant& right) {
+    if (std::holds_alternative<long long>(left) && std::holds_alternative<long long>(right)) {
+        return std::get<long long>(left) - std::get<long long>(right);
+    } else if (std::holds_alternative<double>(left) || std::holds_alternative<double>(right)) {
+        return variant_to_double(left) - variant_to_double(right);
+    }
+    return 0LL; // fallback
+}
+
+eppx_variant operator/(const eppx_variant& left, const eppx_variant& right) {
+    double l = variant_to_double(left);
+    double r = variant_to_double(right);
+    return l / r;
+}
+
+// Comparison operators for eppx_variant
+bool operator==(const eppx_variant& left, const eppx_variant& right) {
+    if (left.index() != right.index()) {
+        return false;
+    }
+    return std::visit([](const auto& l, const auto& r) {
+        return l == r;
+    }, left, right);
+}
+
+bool operator!=(const eppx_variant& left, const eppx_variant& right) {
+    return !(left == right);
+}
+
+bool operator<(const eppx_variant& left, const eppx_variant& right) {
+    if (std::holds_alternative<long long>(left) && std::holds_alternative<long long>(right)) {
+        return std::get<long long>(left) < std::get<long long>(right);
+    } else if (std::holds_alternative<double>(left) || std::holds_alternative<double>(right)) {
+        return variant_to_double(left) < variant_to_double(right);
+    } else if (std::holds_alternative<std::string>(left) && std::holds_alternative<std::string>(right)) {
+        return std::get<std::string>(left) < std::get<std::string>(right);
+    }
+    return false;
+}
+
+bool operator<=(const eppx_variant& left, const eppx_variant& right) {
+    return left < right || left == right;
+}
+
+bool operator>(const eppx_variant& left, const eppx_variant& right) {
+    return !(left <= right);
+}
+
+bool operator>=(const eppx_variant& left, const eppx_variant& right) {
+    return !(left < right);
+}
+
+
 
 // Range function (already exists)
 std::vector<long long> eppx_range(long long n) {
@@ -88,16 +236,32 @@ auto eppx_sum(const Container& container) -> typename Container::value_type {
     return std::accumulate(container.begin(), container.end(), typename Container::value_type{});
 }
 
+// Specialized sum for eppx_variant vectors
+template<>
+eppx_variant eppx_sum(const std::vector<eppx_variant>& container) {
+    eppx_variant sum = 0LL;
+    for (const auto& item : container) {
+        if (std::holds_alternative<long long>(sum) && std::holds_alternative<long long>(item)) {
+            sum = std::get<long long>(sum) + std::get<long long>(item);
+        } else if (std::holds_alternative<double>(sum) || std::holds_alternative<double>(item)) {
+            double s = variant_to_double(sum);
+            double i = variant_to_double(item);
+            sum = s + i;
+        }
+    }
+    return sum;
+}
+
 template<typename Container>
 bool eppx_all(const Container& container) {
     return std::all_of(container.begin(), container.end(), 
-                      [](const auto& item) { return static_cast<bool>(item); });
+                      [](const auto& item) { return variant_to_bool(item); });
 }
 
 template<typename Container>
 bool eppx_any(const Container& container) {
     return std::any_of(container.begin(), container.end(), 
-                      [](const auto& item) { return static_cast<bool>(item); });
+                      [](const auto& item) { return variant_to_bool(item); });
 }
 
 template<typename Container>
@@ -255,6 +419,17 @@ auto eppx_len(const Container& container) -> size_t {
 // String length specialization
 size_t eppx_len(const std::string& str) {
     return str.length();
+}
+
+// eppx_variant length specialization
+size_t eppx_len(const eppx_variant& var) {
+    if (std::holds_alternative<std::string>(var)) {
+        return std::get<std::string>(var).length();
+    } else if (std::holds_alternative<std::vector<eppx_variant>>(var)) {
+        return std::get<std::vector<eppx_variant>>(var).size();
+    }
+    // For other types, return 0 or throw an error
+    throw std::runtime_error("len() not supported for this type");
 }
 
 // Multi-argument min/max functions
@@ -499,10 +674,214 @@ std::string eppx_upper(const std::string& s) {
     return result;
 }
 
+std::string eppx_upper(const eppx_variant& v) {
+    return eppx_upper(variant_to_string(v));
+}
+
 std::string eppx_lower(const std::string& s) {
     std::string result = s;
     std::transform(result.begin(), result.end(), result.begin(), ::tolower);
     return result;
+}
+
+std::string eppx_lower(const eppx_variant& v) {
+    return eppx_lower(variant_to_string(v));
+}
+
+// Iterator and generator support
+template<typename T>
+class EppxIterator {
+private:
+    std::vector<T> data;
+    size_t current_index;
+
+public:
+    EppxIterator(const std::vector<T>& vec) : data(vec), current_index(0) {}
+    
+    bool has_next() const {
+        return current_index < data.size();
+    }
+    
+    T next() {
+        if (!has_next()) {
+            throw std::runtime_error("StopIteration");
+        }
+        return data[current_index++];
+    }
+    
+    void reset() {
+        current_index = 0;
+    }
+};
+
+// Iterator factory function
+template<typename T>
+EppxIterator<T> eppx_iter(const std::vector<T>& iterable) {
+    return EppxIterator<T>(iterable);
+}
+
+// next() builtin function
+template<typename T>
+T eppx_next(EppxIterator<T>& iterator) {
+    return iterator.next();
+}
+
+// Generator base class
+class EppxGenerator {
+public:
+    virtual ~EppxGenerator() = default;
+    virtual eppx_variant next() = 0;
+    virtual bool has_next() const = 0;
+    virtual void reset() {}
+};
+
+// Simple range generator
+class EppxRangeGenerator : public EppxGenerator {
+private:
+    long long current;
+    long long stop;
+    long long step;
+
+public:
+    EppxRangeGenerator(long long start, long long stop_val, long long step_val = 1)
+        : current(start), stop(stop_val), step(step_val) {}
+
+    eppx_variant next() override {
+        if (!has_next()) {
+            throw std::runtime_error("StopIteration");
+        }
+        long long value = current;
+        current += step;
+        return value;
+    }
+
+    bool has_next() const override {
+        if (step > 0) {
+            return current < stop;
+        } else {
+            return current > stop;
+        }
+    }
+
+    void reset() override {
+        // Would need to store original start value to implement reset
+    }
+};
+
+// Generator expression support
+template<typename Func, typename Iterable>
+class EppxGeneratorExpression : public EppxGenerator {
+private:
+    Func transform_func;
+    EppxIterator<typename Iterable::value_type> iterator;
+
+public:
+    EppxGeneratorExpression(Func func, const Iterable& iterable)
+        : transform_func(func), iterator(iterable) {}
+
+    eppx_variant next() override {
+        if (!has_next()) {
+            throw std::runtime_error("StopIteration");
+        }
+        auto value = iterator.next();
+        return transform_func(value);
+    }
+
+    bool has_next() const override {
+        return iterator.has_next();
+    }
+};
+
+// Iterator support classes and functions
+template<typename T>
+class ListIterator {
+private:
+    const std::vector<T>& container;
+    size_t index = 0;
+    
+public:
+    ListIterator(const std::vector<T>& container) : container(container) {}
+    
+    bool has_next() const {
+        return index < container.size();
+    }
+    
+    T next() {
+        if (index >= container.size()) {
+            throw std::runtime_error("StopIteration");
+        }
+        return container[index++];
+    }
+};
+
+// Iterator for eppx_variant vectors (most common case)
+class IteratorLL {
+private:
+    std::vector<eppx_variant> data;
+    size_t index = 0;
+
+public:
+    IteratorLL() = default;
+    IteratorLL(const std::vector<eppx_variant>& container) : data(container) {}
+    
+    bool has_next() const {
+        return index < data.size();
+    }
+    
+    eppx_variant next() {
+        if (index >= data.size()) {
+            throw std::runtime_error("StopIteration");
+        }
+        return data[index++];
+    }
+};
+
+// Iterator for string vectors
+class IteratorStr {
+private:
+    std::vector<eppx_variant> data;
+    size_t index = 0;
+
+public:
+    IteratorStr() = default;
+    IteratorStr(const std::vector<eppx_variant>& container) : data(container) {}
+    
+    bool has_next() const {
+        return index < data.size();
+    }
+    
+    eppx_variant next() {
+        if (index >= data.size()) {
+            throw std::runtime_error("StopIteration");
+        }
+        return data[index++];
+    }
+};
+
+// Global iterator storage (simplified approach)
+static std::map<std::string, IteratorLL> ll_iterators;
+static int iterator_counter = 0;
+
+// iter() function for eppx_variant vectors
+std::string iter(const std::vector<eppx_variant>& container) {
+    std::string iter_id = "iter_" + std::to_string(iterator_counter++);
+    ll_iterators[iter_id] = IteratorLL(container);
+    return iter_id;
+}
+
+// next() function for generator objects
+template<typename Generator>
+auto next(Generator& gen) -> decltype(gen.next_value()) {
+    return gen.next_value();
+}
+
+// next() function for eppx_variant iterators
+eppx_variant next(const std::string& iter_id) {
+    auto it = ll_iterators.find(iter_id);
+    if (it != ll_iterators.end()) {
+        return it->second.next();
+    }
+    throw std::runtime_error("Invalid iterator");
 }
 
 #endif // EPPX_BUILTINS_HPP

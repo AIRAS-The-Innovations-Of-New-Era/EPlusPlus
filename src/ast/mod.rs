@@ -55,6 +55,7 @@ pub enum Statement {
         items: Vec<WithItem>,
         body: Vec<AstNode>,
     },
+    Yield(Option<Box<Expression>>), // For generator functions: yield or yield value
 }
 
 #[derive(Debug, Clone, PartialEq)]

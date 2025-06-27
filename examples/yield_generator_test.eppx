@@ -1,0 +1,47 @@
+# Generator function examples with yield
+
+def simple_generator():
+    yield 1
+    yield 2
+    yield 3
+
+# Test the generator
+gen = simple_generator()
+print("First value:", next(gen))
+print("Second value:", next(gen))
+print("Third value:", next(gen))
+
+# Generator with parameters
+def countdown(n):
+    while n > 0:
+        yield n
+        n = n - 1
+
+# Test countdown generator
+count_gen = countdown(5)
+for num in count_gen:
+    print("Countdown:", num)
+
+# Generator with conditional yields
+def even_numbers(max_num):
+    i = 0
+    while i <= max_num:
+        if i % 2 == 0:
+            yield i
+        i = i + 1
+
+# Test even numbers generator
+even_gen = even_numbers(10)
+for even in even_gen:
+    print("Even number:", even)
+
+# Generator that yields from a list
+def list_generator(items):
+    for item in items:
+        yield item * 2
+
+# Test list generator
+data = [1, 2, 3, 4]
+doubled_gen = list_generator(data)
+for doubled in doubled_gen:
+    print("Doubled:", doubled)

@@ -341,6 +341,14 @@ fn build_ast_from_expression(pair: Pair<Rule>) -> Result<Expression, String> {
             let val = pair.as_str().parse::<f64>().map_err(|e| format!("Invalid float: {}", e))?;
             Ok(Expression::FloatLiteral(val))
         }
+        Rule::boolean_literal => {
+            let val = match pair.as_str() {
+                "True" => true,
+                "False" => false,
+                _ => return Err("Invalid boolean literal".to_string()),
+            };
+            Ok(Expression::BooleanLiteral(val))
+        }
         Rule::none_literal => { // Added for None
             Ok(Expression::NoneLiteral)
         }
@@ -885,6 +893,15 @@ fn build_ast_from_statement(pair: Pair<Rule>) -> Result<AstNode, String> {
                 None
             };
             Ok(AstNode::Statement(Statement::Return(expr)))
+        }
+        Rule::yield_statement => {
+            let mut inner_rules = specific_statement_pair.into_inner();
+            let expr = if let Some(expr_pair) = inner_rules.next() {
+                Some(Box::new(build_ast_from_expression(expr_pair)?))
+            } else {
+                None
+            };
+            Ok(AstNode::Statement(Statement::Yield(expr)))
         }
         Rule::expression_statement => {
             let expr_pair = specific_statement_pair.into_inner().next().ok_or_else(|| "Expression statement missing expression".to_string())?;

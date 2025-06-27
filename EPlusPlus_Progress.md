@@ -248,8 +248,8 @@ This document tracks the implementation progress of Python syntax and features i
 
 **9. Generators and Iterators:**
 
-- [ ] `yield`
-- [ ] Iterables, iterators
+- [x] `yield`
+- [x] Iterables, iterators
 
 **10. Context Managers:**
 

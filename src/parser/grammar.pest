@@ -3,7 +3,7 @@ COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
 
 program = { SOI ~ ( (statement | function_definition | class_definition) ~ (WHITESPACE* ~ COMMENT*) )* ~ EOI }
 
-statement = { assignment | print_statement | if_statement | while_statement | for_statement | function_definition | class_definition | return_statement | expression_statement | break_statement | continue_statement | pass_statement | try_statement | raise_statement | with_statement }
+statement = { assignment | print_statement | if_statement | while_statement | for_statement | function_definition | class_definition | return_statement | yield_statement | expression_statement | break_statement | continue_statement | pass_statement | try_statement | raise_statement | with_statement }
 expression_statement = { expression }
 
 assignment_operator = @{ "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "//=" | "&=" | "|=" | "^=" | ">>=" | "<<=" }
@@ -21,7 +21,7 @@ while_statement = { "while" ~ expression ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ blo
 for_statement = { "for" ~ for_target ~ "in" ~ expression ~ ":" ~ (WHITESPACE* ~ COMMENT*)? ~ block }
 
 // For loop targets - can be single identifier or tuple unpacking
-for_target = { identifier | for_tuple_unpacking }
+for_target = { for_tuple_unpacking | identifier }
 for_tuple_unpacking = { identifier ~ ("," ~ identifier)+ }
 
 NEWLINE = _{ "\r"? ~ "\n" }
@@ -88,6 +88,7 @@ atom = {
     float_literal |
     integer_literal |
     string_literal |
+    boolean_literal |
     none_literal |
     identifier |
     "(" ~ expression ~ ")"
@@ -108,12 +109,13 @@ keyword_argument = { identifier ~ "=" ~ expression }
 float_literal = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
 integer_literal = @{ ASCII_DIGIT+ }
 string_literal = @{ "\"" ~ (double_quoted_char*) ~ "\"" | "'" ~ (single_quoted_char*) ~ "'" }
+boolean_literal = @{ "True" | "False" }
 none_literal = @{ "None" } // Added for None
 double_quoted_char = { escape_sequence | !("\"" | "\\") ~ ANY }
 single_quoted_char = { escape_sequence | !("'" | "\\") ~ ANY }
 escape_sequence = { "\\" ~ ("n" | "t" | "r" | "b" | "f" | "v" | "0" | "\\" | "\"" | "'" | "a") }
 // Keywords that should not be parsed as identifiers - must be complete words
-keyword = @{ ("if" | "elif" | "else" | "while" | "for" | "def" | "class" | "return" | "break" | "continue" | "pass" | "try" | "except" | "finally" | "raise" | "and" | "or" | "not" | "in" | "is" | "None" | "True" | "False" | "lambda" | "as" | "print" | "with") ~ !(ASCII_ALPHANUMERIC | "_") }
+keyword = @{ ("if" | "elif" | "else" | "while" | "for" | "def" | "class" | "return" | "yield" | "break" | "continue" | "pass" | "try" | "except" | "finally" | "raise" | "and" | "or" | "not" | "in" | "is" | "None" | "True" | "False" | "lambda" | "as" | "print" | "with") ~ !(ASCII_ALPHANUMERIC | "_") }
 
 identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 
@@ -125,6 +127,8 @@ decorator_name = { identifier }
 decorator_args = { "(" ~ argument_list? ~ ")" }
 
 return_statement = { "return" ~ expression? }
+
+yield_statement = { "yield" ~ expression? }
 
 break_statement = { "break" }
 continue_statement = { "continue" }
