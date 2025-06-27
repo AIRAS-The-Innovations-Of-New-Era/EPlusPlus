@@ -539,22 +539,35 @@ fn generate_statement_list_cpp(
                 
                 // Generate C++ RAII-style with statement using context managers
                 for (i, item) in items.iter().enumerate() {
-                    let context_expr_cpp = emit_expression_cpp(&item.context_expr, symbol_table, function_table, type_map)?;
-                    
-                    // Create a context manager variable with unique name
+                    // Special handling: if context_expr is a call to open(...), wrap in eppx_with_file
+
+                    let context_expr_cpp = match &item.context_expr {
+                        Expression::Call { callee, args } => {
+                            if let Expression::Identifier(func_name) = &**callee {
+                                if func_name == "open" {
+                                    let mut open_args_cpp = Vec::new();
+                                    for arg in args {
+                                        open_args_cpp.push(emit_expression_cpp(arg, symbol_table, function_table, type_map)?);
+                                    }
+                                    let open_call = format!("eppx_open({})", open_args_cpp.join(", "));
+                                    format!("eppx_with_file({})", open_call)
+                                } else {
+                                    emit_expression_cpp(&item.context_expr, symbol_table, function_table, type_map)?
+                                }
+                            } else {
+                                emit_expression_cpp(&item.context_expr, symbol_table, function_table, type_map)?
+                            }
+                        }
+                        _ => emit_expression_cpp(&item.context_expr, symbol_table, function_table, type_map)?
+                    };
                     let cm_var = format!("eppx_cm_{}_{}", unique_id, i);
-                    cpp_out.push_str(&format!("    auto {} = eppx_with_file({});\n", cm_var, context_expr_cpp));
-                    
-                    // Call __enter__ method - use original variable name when specified
+                    cpp_out.push_str(&format!("    auto {} = {};\n", cm_var, context_expr_cpp));
                     let enter_var = if let Some(var_name) = &item.optional_vars {
-                        var_name.clone()  // Use the original variable name as specified by user
+                        var_name.clone()
                     } else {
                         format!("eppx_ctx_{}_{}", unique_id, i)
                     };
-                    
                     cpp_out.push_str(&format!("    auto {} = {}.__enter__();\n", enter_var, cm_var));
-                    
-                    // Add the context variable to the symbol table
                     symbol_table.add_variable(&enter_var, "auto");
                 }
                 
@@ -996,35 +1009,43 @@ fn _generate_cpp_code_with_vars(
                             }
 
                             let mut method_declared_vars = HashSet::new();
-                            let body_cpp = generate_statement_list_cpp(method_body, &mut method_declared_vars, symbol_table, function_table, type_map)?;                            if method_name == "__init__" {
+                            let body_cpp = generate_statement_list_cpp(method_body, &mut method_declared_vars, symbol_table, function_table, type_map)?;
+                            if method_name == "__init__" {
                                 has_init = true;
                                 let params_cpp: Vec<String> = params.iter().filter(|p| **p != "self").map(|p| format!("long long {}", p)).collect();
                                 constructor_params = params_cpp;
-                                constructor_body = indent_code(&body_cpp);                            } else {
+                                constructor_body = indent_code(&body_cpp);
+                            } else if method_name == "__enter__" {
+                                // Always public, correct signature
+                                cpp_out.push_str("public:\n");
+                                cpp_out.push_str(&format!("    auto& __enter__() {{\n"));
+                                // Replace 'return this;' with 'return *this;' in the body
+                                let body_cpp_fixed = body_cpp.replace("return this;", "return *this;");
+                                cpp_out.push_str(&body_cpp_fixed);
+                                cpp_out.push_str("    }\n");
+                            } else if method_name == "__exit__" {
+                                // Always public, correct signature
+                                cpp_out.push_str("public:\n");
+                                cpp_out.push_str(&format!("    bool __exit__(const std::string& exc_type = \"\", const std::string& exc_val = \"\", const std::string& exc_tb = \"\") {{\n"));
+                                cpp_out.push_str(&indent_code(&body_cpp));
+                                cpp_out.push_str("    }\n");
+                            } else {
                                 let mut return_type = infer_return_type_from_body(method_body, method_name, base);
-                                
-                                // Special handling for iterator methods
                                 if method_name == "__iter__" {
-                                    return_type = format!("{}*", name); // Return pointer to this class
+                                    return_type = format!("{}*", name);
                                 } else if method_name == "__next__" {
-                                    return_type = "long long".to_string(); // Return the next value
+                                    return_type = "long long".to_string();
                                 }
-                                
-                                // --- Polymorphism: virtual/override ---
                                 let is_override = base.is_some();
                                 let is_private = method_name.starts_with('_') && method_name != "__str__" && method_name != "__init__" && method_name != "__iter__" && method_name != "__next__";
-                                
-                                // Don't make iterator methods virtual with auto return type
                                 let virtual_str = if !is_override && method_name != "__iter__" { "virtual " } else { "" };
                                 let override_str = if is_override { " override" } else { "" };
-                                // For now, emit all methods as public except _underscore ones (but not __special__)
                                 if is_private {
                                     cpp_out.push_str("private:\n");
                                 }
                                 let params_cpp = params.iter().filter(|p| **p != "self").map(|p| format!("long long {}", p)).collect::<Vec<_>>().join(", ");
                                 cpp_out.push_str(&format!("    {}{} {}({}){} {{\n", virtual_str, return_type, method_name, params_cpp, override_str));
                                 cpp_out.push_str(&indent_code(&body_cpp));
-                                
                                 let has_any_return = method_body.iter().any(|node| matches!(node, AstNode::Statement(Statement::Return(_))));
                                 if !has_any_return {
                                     if return_type == "std::string" {
@@ -1035,9 +1056,7 @@ fn _generate_cpp_code_with_vars(
                                 if is_private {
                                     cpp_out.push_str("public:\n");
                                 }
-                                // ---
                             }
-
                             symbol_table.exit_scope(); // Exit method scope
                         }
                         _ => { /* Ignore other statements for now */ }

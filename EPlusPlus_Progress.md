@@ -253,5 +253,5 @@ This document tracks the implementation progress of Python syntax and features i
 
 **10. Context Managers:**
 
-- [ ] `with` statement
-- [ ] `__enter__`, `__exit__`
+- [x] `with` statement
+- [x] `__enter__`, `__exit__`

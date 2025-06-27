@@ -637,23 +637,17 @@ std::shared_ptr<EppxFile> eppx_open(const std::string& filepath,
     return file_obj;
 }
 
-// Context manager support for with statements
+// Context manager for files
+// (Needed for Python-style with open(...) as ...)
 template<typename FileType>
 class EppxFileContextManager {
 private:
     FileType file_obj;
     bool should_close;
-
 public:
     EppxFileContextManager(FileType f) : file_obj(f), should_close(true) {}
-
-    FileType& __enter__() {
-        return file_obj;
-    }
-
-    bool __exit__(const std::string& exc_type = "", 
-                  const std::string& exc_val = "", 
-                  const std::string& exc_tb = "") {
+    FileType& __enter__() { return file_obj; }
+    bool __exit__(const std::string& exc_type = "", const std::string& exc_val = "", const std::string& exc_tb = "") {
         if (should_close && file_obj) {
             file_obj->close();
         }
@@ -661,7 +655,6 @@ public:
     }
 };
 
-// Helper function to create context manager
 template<typename FileType>
 EppxFileContextManager<FileType> eppx_with_file(FileType file_obj) {
     return EppxFileContextManager<FileType>(file_obj);

@@ -44,3 +44,17 @@ for i in range(5):
     elif i == 4:
         break
     print(i)
+
+# Custom context manager test
+class MyContext:
+    def __init__(self):
+        print("init")
+    def __enter__(self):
+        print("enter")
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        print("exit")
+        return False
+
+with MyContext() as ctx:
+    print("inside with")
