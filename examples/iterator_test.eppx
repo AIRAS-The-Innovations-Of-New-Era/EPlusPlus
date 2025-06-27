@@ -1,0 +1,56 @@
+# Iterator and iterable examples
+
+# Simple iterator using generator
+def fibonacci():
+    a = 0
+    b = 1
+    while True:
+        yield a
+        temp = a
+        a = b
+        b = temp + b
+
+# Test fibonacci generator
+fib = fibonacci()
+print("First 10 fibonacci numbers:")
+for i in range(10):
+    print(next(fib))
+
+# Custom iterator-like generator
+def my_range(start, stop, step):
+    current = start
+    if step > 0:
+        while current < stop:
+            yield current
+            current = current + step
+    else:
+        while current > stop:
+            yield current
+            current = current + step
+
+# Test custom range
+print("Custom range from 0 to 10 step 2:")
+for num in my_range(0, 10, 2):
+    print(num)
+
+print("Custom range from 10 to 0 step -2:")
+for num in my_range(10, 0, -2):
+    print(num)
+
+# Generator that works with built-in iterables
+def process_iterable(iterable):
+    for item in iterable:
+        yield item + 10
+
+# Test with different iterables
+numbers = [1, 2, 3, 4, 5]
+processed = process_iterable(numbers)
+print("Processed list:")
+for item in processed:
+    print(item)
+
+# Generator expression (already supported)
+squares = (x * x for x in range(5))
+print("Squares from generator expression:")
+for square in squares:
+    print(square)

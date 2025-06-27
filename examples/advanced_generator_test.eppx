@@ -1,0 +1,36 @@
+# Advanced generator test with complex patterns
+
+def infinite_counter(start):
+    current = start
+    while True:
+        yield current
+        current = current + 1
+
+def take(generator, n):
+    result = []
+    count = 0
+    for value in generator:
+        if count >= n:
+            break
+        result.append(value)
+        count = count + 1
+    return result
+
+# Test infinite generator with limiting
+print("First 5 numbers from infinite counter starting at 10:")
+counter = infinite_counter(10)
+first_five = take(counter, 5)
+for num in first_five:
+    print(num)
+
+# Test yield with conditional logic
+def even_numbers(limit):
+    n = 0
+    while n < limit:
+        if n % 2 == 0:
+            yield n
+        n = n + 1
+
+print("Even numbers up to 10:")
+for even in even_numbers(10):
+    print(even)

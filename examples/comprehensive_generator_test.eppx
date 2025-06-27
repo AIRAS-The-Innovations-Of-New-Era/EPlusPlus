@@ -1,0 +1,95 @@
+# Comprehensive generators and iterators test
+
+print("=== Testing Basic Generator Functions ===")
+
+def count_up_to(max):
+    count = 1
+    while count <= max:
+        yield count
+        count = count + 1
+
+# Test basic generator
+counter = count_up_to(3)
+print("Generator values:")
+print(next(counter))  # Should print 1
+print(next(counter))  # Should print 2
+print(next(counter))  # Should print 3
+
+print("\n=== Testing Generator in For Loop ===")
+
+def squares_generator(n):
+    i = 0
+    while i < n:
+        yield i * i
+        i = i + 1
+
+print("Squares using generator:")
+for square in squares_generator(5):
+    print(square)
+
+print("\n=== Testing Generator Expressions ===")
+
+# Generator expression (should already work)
+numbers = [1, 2, 3, 4, 5]
+squared_gen = (x * x for x in numbers)
+print("Generator expression results:")
+for val in squared_gen:
+    print(val)
+
+print("\n=== Testing Fibonacci Generator ===")
+
+def fibonacci_gen(count):
+    a = 0
+    b = 1
+    yielded = 0
+    while yielded < count:
+        yield a
+        temp = a
+        a = b
+        b = temp + b
+        yielded = yielded + 1
+
+print("First 8 Fibonacci numbers:")
+fib = fibonacci_gen(8)
+for num in fib:
+    print(num)
+
+print("\n=== Testing Generator with Conditional Yields ===")
+
+def even_odd_generator(max_num):
+    i = 0
+    while i <= max_num:
+        if i % 2 == 0:
+            yield ("even", i)
+        else:
+            yield ("odd", i)
+        i = i + 1
+
+print("Even/odd classification:")
+eo_gen = even_odd_generator(5)
+for classification in eo_gen:
+    print(classification)
+
+print("\n=== Testing Empty Generator ===")
+
+def empty_generator():
+    return
+    yield 1  # This should never execute
+
+empty_gen = empty_generator()
+print("Empty generator test completed")
+
+print("\n=== Testing Generator with Parameters ===")
+
+def repeat_value(value, times):
+    count = 0
+    while count < times:
+        yield value
+        count = count + 1
+
+repeat_gen = repeat_value("hello", 3)
+print("Repeating 'hello' 3 times:")
+for val in repeat_gen:
+    print(val)
+
+print("\n=== All generator and iterator tests completed ===")

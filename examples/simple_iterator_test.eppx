@@ -1,0 +1,27 @@
+# Test basic iterator protocol and built-in iterator functions
+
+# Test iter() and next() functions
+numbers = [1, 2, 3, 4, 5]
+iterator = iter(numbers)
+
+print("Using next():")
+print(next(iterator))
+print(next(iterator))
+print(next(iterator))
+
+# Test range() as an iterable
+print("Range iteration:")
+for i in range(3):
+    print(i)
+
+# Test basic iteration over lists
+print("List iteration:")
+data = ["apple", "banana", "cherry"]
+for item in data:
+    print(item)
+
+# Test basic iteration over generator expressions
+print("Generator expression iteration:")
+squares = (x * x for x in range(5))
+for square in squares:
+    print(square)

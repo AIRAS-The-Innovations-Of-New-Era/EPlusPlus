@@ -1,0 +1,49 @@
+# Test iterator protocol and built-in iterator functions
+
+# Test iter() and next() functions
+numbers = [1, 2, 3, 4, 5]
+iterator = iter(numbers)
+
+print("Using next():")
+print(next(iterator))
+print(next(iterator))
+print(next(iterator))
+
+# Test range() as an iterable
+print("Range iteration:")
+for i in range(3):
+    print(i)
+
+# Test enumerate() with iterables
+print("Enumerate test:")
+data = ["apple", "banana", "cherry"]
+for index, value in enumerate(data):
+    print(index, value)
+
+# Test zip() with multiple iterables
+print("Zip test:")
+names = ["Alice", "Bob", "Charlie"]
+ages = [25, 30, 35]
+for name, age in zip(names, ages):
+    print(name, age)
+
+# Test custom iterable class
+class Counter:
+    def __init__(self, max_count):
+        self.max_count = max_count
+        self.count = 0
+    
+    def __iter__(self):
+        return self
+    
+    def __next__(self):
+        if self.count < self.max_count:
+            self.count = self.count + 1
+            return self.count
+        else:
+            raise StopIteration
+
+print("Custom iterator:")
+counter = Counter(3)
+for num in counter:
+    print(num)
