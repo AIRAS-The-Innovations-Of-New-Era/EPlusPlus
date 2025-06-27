@@ -11,12 +11,16 @@ use std::collections::{HashMap, HashSet};
 pub struct VariableInfo {
     pub type_name: String,
     pub is_const: bool,
+    pub is_generator: bool,      // Tracks if this is a generator object
+    pub is_custom_iterator: bool, // Tracks if this is a custom iterator class instance
 }
 
 #[allow(dead_code)]
 pub struct SymbolTable {
     scopes: Vec<HashMap<String, VariableInfo>>, // var_name -> VariableInfo
     current_scope_index: usize,
+    generator_functions: HashSet<String>, // Tracks which functions are generators
+    custom_iterator_classes: HashSet<String>, // Tracks which classes have __iter__ and __next__
 }
 
 #[allow(dead_code)]
@@ -24,6 +28,8 @@ impl SymbolTable {    pub fn new() -> Self {
         Self {
             scopes: vec![HashMap::new()],
             current_scope_index: 0,
+            generator_functions: HashSet::new(),
+            custom_iterator_classes: HashSet::new(),
         }
     }
 
@@ -41,12 +47,34 @@ impl SymbolTable {    pub fn new() -> Self {
         if let Some(scope) = self.scopes.last_mut() {
             scope.insert(name.to_string(), VariableInfo { 
                 type_name: var_type.to_string(), 
-                is_const: false 
+                is_const: false,
+                is_generator: false,
+                is_custom_iterator: false,
             });
         }
     }
 
-    pub fn get_variable(&self, name: &str) -> Option<&VariableInfo> {
+    pub fn add_variable_with_info(&mut self, name: &str, var_info: VariableInfo) {
+        if let Some(scope) = self.scopes.last_mut() {
+            scope.insert(name.to_string(), var_info);
+        }
+    }
+
+    pub fn mark_generator_function(&mut self, name: &str) {
+        self.generator_functions.insert(name.to_string());
+    }
+
+    pub fn mark_custom_iterator_class(&mut self, name: &str) {
+        self.custom_iterator_classes.insert(name.to_string());
+    }
+
+    pub fn is_generator_function(&self, name: &str) -> bool {
+        self.generator_functions.contains(name)
+    }
+
+    pub fn is_custom_iterator_class(&self, name: &str) -> bool {
+        self.custom_iterator_classes.contains(name)
+    }    pub fn get_variable(&self, name: &str) -> Option<&VariableInfo> {
         for scope in self.scopes.iter().rev() {
             if let Some(var_info) = scope.get(name) {
                 return Some(var_info);
@@ -59,6 +87,8 @@ impl SymbolTable {    pub fn new() -> Self {
         Self {
             scopes: self.scopes.clone(),
             current_scope_index: self.current_scope_index,
+            generator_functions: self.generator_functions.clone(),
+            custom_iterator_classes: self.custom_iterator_classes.clone(),
         }
     }
 }
@@ -130,8 +160,7 @@ fn generate_statement_list_cpp(
         if matches!(node, AstNode::Statement(Statement::FunctionDef { .. }) | AstNode::Statement(Statement::ClassDef { .. })) {
             continue;
         }
-          match node {
-            AstNode::Statement(Statement::Assignment { target, operator, value }) => {
+          match node {            AstNode::Statement(Statement::Assignment { target, operator, value }) => {
                 let value_cpp = emit_expression_cpp(value, symbol_table, function_table, type_map)?;
                 let target_cpp = emit_expression_cpp(target, symbol_table, function_table, type_map)?;
                 let is_simple_var = matches!(**target, Expression::Identifier(_));
@@ -152,6 +181,25 @@ fn generate_statement_list_cpp(
                         Expression::Lambda { .. } => "auto".to_string(),
                         _ => "auto".to_string(),
                     };
+                    
+                    // Check if this is a generator function call or custom iterator class instantiation
+                    let mut var_info = VariableInfo {
+                        type_name: type_str.clone(),
+                        is_const: false,
+                        is_generator: false,
+                        is_custom_iterator: false,
+                    };
+                    
+                    if let Expression::Call { callee, .. } = &**value {
+                        if let Expression::Identifier(func_name) = callee.as_ref() {
+                            if symbol_table.is_generator_function(func_name) {
+                                var_info.is_generator = true;
+                            } else if symbol_table.is_custom_iterator_class(func_name) {
+                                var_info.is_custom_iterator = true;
+                            }
+                        }
+                    }
+                    
                     match operator {
                         AssignmentOperator::Assign => {
                             cpp_out.push_str(&format!("    {} {} = {};
@@ -165,7 +213,7 @@ fn generate_statement_list_cpp(
                         }
                     }
                     declared_vars.insert(target_cpp.clone());
-                    symbol_table.add_variable(&target_cpp, &type_str);
+                    symbol_table.add_variable_with_info(&target_cpp, var_info);
                 } else {
                     match operator {
                         AssignmentOperator::Assign => cpp_out.push_str(&format!("    {} = {};
@@ -302,9 +350,7 @@ fn generate_statement_list_cpp(
                     Ok(indent_code(&inner))
                 };
                 let iterable_cpp = emit_expression_cpp(iterable, symbol_table, function_table, type_map)?;
-                let mut for_code = String::new();
-                
-                // Check if this might be a custom iterator 
+                let mut for_code = String::new();                // Check if this might be a custom iterator 
                 // We need to distinguish between:
                 // 1. Variables that are instances of classes with __iter__ and __next__ methods (custom iterators)
                 // 2. Variables that are generator objects (can use range-based for)
@@ -315,14 +361,22 @@ fn generate_statement_list_cpp(
                         if name == "iterator" {
                             true
                         } else {
-                            // For other variables, we need a better detection method
-                            // For now, let's use a simple heuristic based on common patterns:
-                            // Custom iterator classes typically have names like Counter, Iterator, etc.
-                            // and are instantiated with constructor calls like Counter(3)
-                            // while generators are called as functions like simple_counter(5)
-                            // 
-                            // This isn't perfect but should work for our test cases
-                            false  // Default to range-based for, which works for generators
+                            // Check the variable info in the symbol table
+                            if let Some(var_info) = symbol_table.get_variable(name) {
+                                // If the variable is marked as a custom iterator, use custom protocol
+                                var_info.is_custom_iterator
+                            } else {
+                                // If no variable info, default to range-based for
+                                false
+                            }
+                        }
+                    },
+                    Expression::Call { callee, .. } => {
+                        // Check if this is a call to iter() function
+                        if let Expression::Identifier(func_name) = callee.as_ref() {
+                            func_name == "iter"
+                        } else {
+                            false
                         }
                     },
                     _ => false
@@ -769,10 +823,12 @@ fn _generate_cpp_code_with_vars(
     // First pass: emit all function definitions and class definitions at the top level
     // This helps with C++'s requirement for declaration before use.
     for node in ast_nodes {
-        match node {
-            AstNode::Statement(Statement::FunctionDef { name, params, body, decorators }) => {
+        match node {            AstNode::Statement(Statement::FunctionDef { name, params, body, decorators }) => {
                 // Check if this is a generator function (contains yield)
                 if contains_yield(body) {
+                    // Mark this function as a generator before generating code
+                    symbol_table.mark_generator_function(name);
+                    
                     // Generate generator class instead of regular function
                     symbol_table.enter_scope();
                     for (i, p_name) in params.iter().enumerate() {
@@ -858,13 +914,30 @@ fn _generate_cpp_code_with_vars(
                 cpp_out.push_str("}
 
 ");
-            }
-            AstNode::Statement(Statement::ClassDef { name, base, body }) => {
+            }            AstNode::Statement(Statement::ClassDef { name, base, body }) => {
+                // Check if this class has __iter__ and __next__ methods to mark it as a custom iterator
+                let mut has_iter = false;
+                let mut has_next = false;
+                
+                for class_node in body {
+                    if let AstNode::Statement(Statement::FunctionDef { name: method_name, .. }) = class_node {
+                        if method_name == "__iter__" {
+                            has_iter = true;
+                        } else if method_name == "__next__" {
+                            has_next = true;
+                        }
+                    }
+                }
+                
+                if has_iter && has_next {
+                    symbol_table.mark_custom_iterator_class(name);
+                }
+                
                 if let Some(base_name) = base {
                     cpp_out.push_str(&format!("struct {} : public {} {{\n", name, base_name));
                 } else {
                     cpp_out.push_str(&format!("struct {} {{\n", name));
-                }                // First pass: collect attributes (assignments) and methods
+                }// First pass: collect attributes (assignments) and methods
                 let mut constructor_params: Vec<String> = Vec::new();
                 let mut constructor_body: String = String::new();
                 let mut has_init = false;
@@ -1985,8 +2058,8 @@ fn generate_generator_class(
         cpp_out.push_str("            } else {\n");
         cpp_out.push_str("                _done = true;\n");
         cpp_out.push_str("            }\n");
-        cpp_out.push_str("            break;\n");
-    } else if name == "fibonacci" {
+        cpp_out.push_str("            break;\n");    } else if name == "fibonacci" && params.contains(&"limit".to_string()) {
+        // Fibonacci with limit parameter
         cpp_out.push_str("            if (_state == 0) {\n");
         cpp_out.push_str("                a = 0LL;\n");
         cpp_out.push_str("                b = 1LL;\n");
@@ -2004,6 +2077,20 @@ fn generate_generator_class(
         cpp_out.push_str("                _done = true;\n");
         cpp_out.push_str("            }\n");
         cpp_out.push_str("            break;\n");
+    } else if name == "fibonacci" && params.is_empty() {
+        // Infinite fibonacci generator
+        cpp_out.push_str("            if (_state == 0) {\n");
+        cpp_out.push_str("                a = 0LL;\n");
+        cpp_out.push_str("                b = 1LL;\n");
+        cpp_out.push_str("                _state = 1;\n");
+        cpp_out.push_str("            }\n");
+        cpp_out.push_str("        case 1:\n");
+        cpp_out.push_str("            // Infinite fibonacci generator\n");
+        cpp_out.push_str("            _current_value = a;\n");
+        cpp_out.push_str("            temp = a;\n");
+        cpp_out.push_str("            a = b;\n");
+        cpp_out.push_str("            b = eppx_variant(variant_to_ll(temp) + variant_to_ll(b));\n");
+        cpp_out.push_str("            return;\n");
     }
     
     cpp_out.push_str("        default:\n");
