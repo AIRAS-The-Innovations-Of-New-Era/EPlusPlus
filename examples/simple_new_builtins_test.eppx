@@ -1,0 +1,17 @@
+# Simple test of newly implemented built-in functions
+print("=== Testing New Built-in Functions ===")
+
+# Test ASCII function
+print("ascii test:", ascii("Hello"))
+
+# Test hash function  
+print("hash test:", hash(42))
+
+# Test repr function
+print("repr test:", repr("hello"))
+
+# Test divmod function
+result = divmod(17, 5)
+print("divmod test:", result)
+
+print("=== Tests completed ===")

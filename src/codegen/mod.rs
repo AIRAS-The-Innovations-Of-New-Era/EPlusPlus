@@ -1155,6 +1155,8 @@ pub fn emit_expression_cpp(
                 "range" => Ok("eppx_range".to_string()),
                 "max" => Ok("eppx_max".to_string()),
                 "min" => Ok("eppx_min".to_string()),
+                "enumerate" => Ok("eppx_enumerate".to_string()),
+                "bytes" => Ok("eppx_bytes".to_string()),
                 "self" => Ok("this".to_string()),
                 "StopIteration" => Ok("StopIterationException".to_string()),
                 _ => Ok(name.clone()),
@@ -1220,7 +1222,7 @@ pub fn emit_expression_cpp(
                     
                     // Mathematical functions
                     "abs" if args.len() == 1 => {
-                        return Ok(format!("std::abs({})", args_cpp[0]));
+                        return Ok(format!("eppx_abs({})", args_cpp[0]));
                     }
                     "pow" if args.len() == 2 => {
                         return Ok(format!("std::pow({}, {})", args_cpp[0], args_cpp[1]));
@@ -1253,10 +1255,10 @@ pub fn emit_expression_cpp(
                         return Ok(format!("eppx_len({})", args_cpp[0]));
                     }
                     "chr" if args.len() == 1 => {
-                        return Ok(format!("std::string(1, static_cast<char>({}))", args_cpp[0]));
+                        return Ok(format!("eppx_chr({})", args_cpp[0]));
                     }
                     "ord" if args.len() == 1 => {
-                        return Ok(format!("static_cast<int>({}[0])", args_cpp[0]));
+                        return Ok(format!("eppx_ord({})", args_cpp[0]));
                     }
                     
                     // Utility functions
@@ -1346,7 +1348,7 @@ pub fn emit_expression_cpp(
                     
                     // Object introspection
                     "id" if args.len() == 1 => {
-                        return Ok(format!("reinterpret_cast<uintptr_t>(&{})", args_cpp[0]));
+                        return Ok(format!("eppx_id({})", args_cpp[0]));
                     }
                     "hasattr" if args.len() == 2 => {
                         return Ok(format!("eppx_hasattr({}, {})", args_cpp[0], args_cpp[1]));
@@ -1366,12 +1368,15 @@ pub fn emit_expression_cpp(
                     
                     // Hash function
                     "hash" if args.len() == 1 => {
-                        return Ok(format!("std::hash<eppx_variant>{{}}({})", args_cpp[0]));
+                        return Ok(format!("eppx_hash({})", args_cpp[0]));
                     }
                     
                     // Advanced functions that need custom implementation
                     "enumerate" if args.len() == 1 => {
                         return Ok(format!("eppx_enumerate({})", args_cpp[0]));
+                    }
+                    "enumerate" if args.len() == 2 => {
+                        return Ok(format!("eppx_enumerate({}, {})", args_cpp[0], args_cpp[1]));
                     }
                     "zip" if args.len() >= 2 => {
                         return Ok(format!("eppx_zip({})", args_cpp.join(", ")));
@@ -1384,6 +1389,98 @@ pub fn emit_expression_cpp(
                     }
                     "sorted" if args.len() == 1 => {
                         return Ok(format!("eppx_sorted({})", args_cpp[0]));
+                    }
+                    
+                    // Newly implemented builtin functions
+                    "ascii" if args.len() == 1 => {
+                        return Ok(format!("eppx_ascii({})", args_cpp[0]));
+                    }
+                    "breakpoint" if args.len() == 0 => {
+                        return Ok("eppx_breakpoint()".to_string());
+                    }
+                    "bytearray" if args.len() == 0 => {
+                        return Ok("eppx_bytearray()".to_string());
+                    }
+                    "bytearray" if args.len() == 1 => {
+                        return Ok(format!("eppx_bytearray({})", args_cpp[0]));
+                    }
+                    "bytes" if args.len() == 0 => {
+                        return Ok("eppx_bytes()".to_string());
+                    }
+                    "bytes" if args.len() == 1 => {
+                        return Ok(format!("eppx_bytes({})", args_cpp[0]));
+                    }
+                    "bytes" if args.len() == 2 => {
+                        return Ok(format!("eppx_bytes({})", args_cpp[0])); // Ignore encoding for now
+                    }
+                    "classmethod" if args.len() == 1 => {
+                        return Ok(format!("eppx_classmethod({})", args_cpp[0]));
+                    }
+                    "compile" if args.len() == 3 => {
+                        return Ok(format!("eppx_compile({}, {}, {})", args_cpp[0], args_cpp[1], args_cpp[2]));
+                    }
+                    "dir" if args.len() == 1 => {
+                        return Ok(format!("eppx_dir({})", args_cpp[0]));
+                    }
+                    "divmod" if args.len() == 2 => {
+                        return Ok(format!("eppx_divmod({}, {})", args_cpp[0], args_cpp[1]));
+                    }
+                    "eval" if args.len() == 1 => {
+                        return Ok(format!("eppx_eval({})", args_cpp[0]));
+                    }
+                    "exec" if args.len() == 1 => {
+                        return Ok(format!("eppx_exec({})", args_cpp[0]));
+                    }
+                    "format" if args.len() == 1 => {
+                        return Ok(format!("eppx_format({})", args_cpp[0]));
+                    }
+                    "format" if args.len() == 2 => {
+                        return Ok(format!("eppx_format({}, {})", args_cpp[0], args_cpp[1]));
+                    }
+                    "globals" if args.len() == 0 => {
+                        return Ok("eppx_globals()".to_string());
+                    }
+                    "help" if args.len() == 0 => {
+                        return Ok("eppx_help()".to_string());
+                    }
+                    "help" if args.len() == 1 => {
+                        return Ok(format!("eppx_help({})", args_cpp[0]));
+                    }
+                    "issubclass" if args.len() == 2 => {
+                        return Ok(format!("eppx_issubclass({}, {})", args_cpp[0], args_cpp[1]));
+                    }
+                    "locals" if args.len() == 0 => {
+                        return Ok("eppx_locals()".to_string());
+                    }
+                    "memoryview" if args.len() == 1 => {
+                        return Ok(format!("eppx_memoryview({})", args_cpp[0]));
+                    }
+                    "object" if args.len() == 0 => {
+                        return Ok("eppx_object()".to_string());
+                    }
+                    "property" if args.len() == 1 => {
+                        return Ok(format!("eppx_property({})", args_cpp[0]));
+                    }
+                    "repr" if args.len() == 1 => {
+                        return Ok(format!("eppx_repr({})", args_cpp[0]));
+                    }
+                    "slice" if args.len() >= 1 => {
+                        return Ok(format!("eppx_slice({})", args_cpp.join(", ")));
+                    }
+                    "staticmethod" if args.len() == 1 => {
+                        return Ok(format!("eppx_staticmethod({})", args_cpp[0]));
+                    }
+                    "super" if args.len() == 0 => {
+                        return Ok("eppx_super()".to_string());
+                    }
+                    "vars" if args.len() == 0 => {
+                        return Ok("eppx_vars()".to_string());
+                    }
+                    "vars" if args.len() == 1 => {
+                        return Ok(format!("eppx_vars({})", args_cpp[0]));
+                    }
+                    "__import__" if args.len() == 1 => {
+                        return Ok(format!("eppx_import({})", args_cpp[0]));
                     }
                     
                     _ => {} // Fall through to generic function call

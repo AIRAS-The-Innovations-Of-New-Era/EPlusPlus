@@ -1,0 +1,76 @@
+# Final test of newly implemented built-in functions
+print("=== Testing New Built-in Functions ===")
+
+# ASCII representation
+print("--- ASCII Function ---")
+print("ascii('Hello'):", ascii('Hello'))
+
+# Byte sequences
+print("--- Byte Sequences ---")
+ba = bytearray("Hello")
+print("bytearray('Hello'):", ba)
+b = bytes("World")
+print("bytes('World'):", b)
+
+# Callable check
+print("--- Callable Function ---")
+print("callable(42):", callable(42))
+print("callable('hello'):", callable('hello'))
+
+# Directory listing
+print("--- Dir Function ---")
+dir_result = dir('hello')
+print("dir('hello') length:", len(dir_result))
+
+# Division and modulus
+print("--- Divmod Function ---")
+print("divmod(17, 5):", divmod(17, 5))
+print("divmod(17.5, 3.2):", divmod(17.5, 3.2))
+
+# Eval (simplified)
+print("--- Eval Function ---")
+print("eval('42'):", eval('42'))
+print("eval('3.14'):", eval('3.14'))
+
+# Format
+print("--- Format Function ---")
+print("format(3.14159, '.2f'):", format(3.14159, '.2f'))
+print("format(42):", format(42))
+
+# Hash
+print("--- Hash Function ---")
+print("hash(42):", hash(42))
+print("hash('hello'):", hash('hello'))
+
+# Help (basic test)
+print("--- Help Function ---")
+help('print')
+
+# ID function
+print("--- ID Function ---")
+x = 42
+print("id(x):", id(x))
+
+# Type checking
+print("--- Type Checking ---")
+print("isinstance(42, 'int'):", isinstance(42, 'int'))
+print("isinstance('hello', 'str'):", isinstance('hello', 'str'))
+print("issubclass('int', 'int'):", issubclass('int', 'int'))
+
+# Object creation
+print("--- Object Creation ---")
+obj = object()
+print("object():", obj)
+
+# Repr function
+print("--- Repr Function ---")
+print("repr('hello'):", repr('hello'))
+print("repr([1, 2, 3]):", repr([1, 2, 3]))
+print("repr(42):", repr(42))
+
+# Slice object
+print("--- Slice Object ---")
+s = slice(1, 5, 2)
+print("slice(1, 5, 2):", s)
+
+print("=== All tests completed! ===")
