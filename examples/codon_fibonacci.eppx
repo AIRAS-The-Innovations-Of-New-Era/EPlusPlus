@@ -1,0 +1,47 @@
+# Fibonacci example demonstrating Codon performance
+# This will show the speed difference between Python and Codon
+
+import time
+
+def fibonacci(n):
+    """Calculate the nth Fibonacci number recursively"""
+    if n <= 1:
+        return n
+    return fibonacci(n - 1) + fibonacci(n - 2)
+
+def fibonacci_iterative(n):
+    """Calculate the nth Fibonacci number iteratively"""
+    if n <= 1:
+        return n
+    
+    a, b = 0, 1
+    for _ in range(2, n + 1):
+        a, b = b, a + b
+    return b
+
+def benchmark_fibonacci():
+    """Benchmark both recursive and iterative Fibonacci"""
+    n = 35  # Large enough to see performance difference
+    
+    print(f"Calculating Fibonacci({n})...")
+    
+    # Test recursive version
+    start_time = time.time()
+    result_recursive = fibonacci(n)
+    recursive_time = time.time() - start_time
+    
+    # Test iterative version
+    start_time = time.time()
+    result_iterative = fibonacci_iterative(n)
+    iterative_time = time.time() - start_time
+    
+    print(f"Recursive Fibonacci({n}) = {result_recursive}")
+    print(f"Recursive time: {recursive_time:.4f} seconds")
+    print(f"Iterative Fibonacci({n}) = {result_iterative}")
+    print(f"Iterative time: {iterative_time:.4f} seconds")
+    print(f"Speedup: {recursive_time / iterative_time:.2f}x")
+    
+    assert result_recursive == result_iterative, "Results should match!"
+
+if __name__ == "__main__":
+    benchmark_fibonacci() 
